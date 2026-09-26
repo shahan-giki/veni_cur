@@ -1,0 +1,9 @@
+line-length = 88
+target-version = "py310"
+exclude = ["**/migrations"]
+
+[lint]
+select = ["E", "F", "I", "UP"]
+
+[lint.per-file-ignores]
+"config/settings/*.py" = ["F403", "F405", "E501"]

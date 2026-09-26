@@ -1,0 +1,25 @@
+[Unit]
+Description=Veni Gunicorn daemon
+Requires=gunicorn.socket
+After=network.target
+
+[Service]
+Type=notify
+User=ubuntu
+Group=www-data
+WorkingDirectory=/var/www/veni/backend
+EnvironmentFile=/var/www/veni/backend/.env
+ExecStart=/var/www/veni/backend/.venv/bin/gunicorn \
+    --access-logfile - \
+    --error-logfile - \
+    --workers 3 \
+    --timeout 60 \
+    --bind unix:/run/gunicorn.sock \
+    config.wsgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

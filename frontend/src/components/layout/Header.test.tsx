@@ -73,6 +73,14 @@ describe("Header", () => {
     expect(controls[controls.length - 1]).toHaveAttribute("href", "/cart");
   });
 
+  it("pins the storefront header at the top while the page scrolls", () => {
+    renderHeader();
+
+    const banner = screen.getByRole("banner");
+    expect(banner).toHaveClass("veni-header");
+    expect(banner).toHaveAttribute("data-sticky", "true");
+  });
+
   it("opens the tray from the menu with search inside", async () => {
     const user = userEvent.setup();
     renderHeader();

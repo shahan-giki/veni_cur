@@ -101,7 +101,7 @@ export function Header() {
 
   return (
     <>
-      <header className="veni-header">
+      <header className="veni-header" data-sticky="true">
         <div className="veni-header__main">
           <div className="veni-header__side">
             <button

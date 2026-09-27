@@ -13,7 +13,9 @@
 }
 
 .veni-header {
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 40;
   background: var(--color-card);
   border-bottom: 1px solid var(--color-border);
 }

@@ -6,6 +6,7 @@ import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { AdminLayout } from "./components/admin/AdminLayout";
 import { Layout } from "./components/layout/Layout";
 import { LoadingGrid } from "./components/ui/LoadingGrid";
+import { ThemeProvider } from "./theme/ThemeProvider";
 import "./styles/storefront.css";
 
 const HomePage = lazy(() =>
@@ -22,6 +23,26 @@ const ProductDetailPage = lazy(() =>
 );
 const NotFoundPage = lazy(() =>
   import("./pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage }))
+);
+const ContactPage = lazy(() =>
+  import("./pages/ContactPage").then((m) => ({ default: m.ContactPage }))
+);
+const ShippingReturnsPage = lazy(() =>
+  import("./pages/ShippingReturnsPage").then((m) => ({
+    default: m.ShippingReturnsPage,
+  }))
+);
+const PrivacyPage = lazy(() =>
+  import("./pages/PrivacyPage").then((m) => ({ default: m.PrivacyPage }))
+);
+const TermsPage = lazy(() =>
+  import("./pages/TermsPage").then((m) => ({ default: m.TermsPage }))
+);
+const CancellationPage = lazy(() =>
+  import("./pages/CancellationPage").then((m) => ({ default: m.CancellationPage }))
+);
+const PaymentInfoPage = lazy(() =>
+  import("./pages/PaymentInfoPage").then((m) => ({ default: m.PaymentInfoPage }))
 );
 const LoginPage = lazy(() =>
   import("./pages/LoginPage").then((m) => ({ default: m.LoginPage }))
@@ -44,9 +65,23 @@ const OrderHistoryPage = lazy(() =>
 const OrderDetailPage = lazy(() =>
   import("./pages/OrderDetailPage").then((m) => ({ default: m.OrderDetailPage }))
 );
+const GuestOrderPage = lazy(() =>
+  import("./pages/GuestOrderPage").then((m) => ({ default: m.GuestOrderPage }))
+);
+const ForgotPasswordPage = lazy(() =>
+  import("./pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage }))
+);
+const ResetPasswordPage = lazy(() =>
+  import("./pages/ResetPasswordPage").then((m) => ({ default: m.ResetPasswordPage }))
+);
 const AdminDashboardPage = lazy(() =>
   import("./pages/admin/AdminDashboardPage").then((m) => ({
     default: m.AdminDashboardPage,
+  }))
+);
+const AdminCustomersPage = lazy(() =>
+  import("./pages/admin/AdminCustomersPage").then((m) => ({
+    default: m.AdminCustomersPage,
   }))
 );
 const AdminOrdersPage = lazy(() =>
@@ -79,10 +114,11 @@ function PageFallback() {
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<Layout />}>
           <Route
             index
             element={
@@ -124,10 +160,98 @@ function App() {
             }
           />
           <Route
+            path="forgot-password"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <ForgotPasswordPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="reset-password/:uid/:token"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <ResetPasswordPage />
+              </Suspense>
+            }
+          />
+          <Route
             path="register"
             element={
               <Suspense fallback={<PageFallback />}>
                 <RegisterPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="cart"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <CartPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="contact"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <ContactPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="shipping-returns"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <ShippingReturnsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="privacy"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <PrivacyPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="terms"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <TermsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="cancellation"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <CancellationPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="payment-info"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <PaymentInfoPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="checkout"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <CheckoutPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="orders/guest/:accessToken"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <GuestOrderPage />
               </Suspense>
             }
           />
@@ -137,22 +261,6 @@ function App() {
               element={
                 <Suspense fallback={<PageFallback />}>
                   <AccountPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="cart"
-              element={
-                <Suspense fallback={<PageFallback />}>
-                  <CartPage />
-                </Suspense>
-              }
-            />
-            <Route
-              path="checkout"
-              element={
-                <Suspense fallback={<PageFallback />}>
-                  <CheckoutPage />
                 </Suspense>
               }
             />
@@ -218,6 +326,14 @@ function App() {
                 }
               />
               <Route
+                path="customers"
+                element={
+                  <Suspense fallback={<PageFallback />}>
+                    <AdminCustomersPage />
+                  </Suspense>
+                }
+              />
+              <Route
                 path="products"
                 element={
                   <Suspense fallback={<PageFallback />}>
@@ -237,7 +353,8 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

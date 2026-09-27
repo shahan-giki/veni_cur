@@ -5,6 +5,23 @@ from apps.accounts.models import User, UserRole
 from apps.catalog.models import Category, Product, ProductStatus
 
 
+@pytest.fixture(autouse=True)
+def _disable_throttles(monkeypatch, request):
+    """Strip DRF view throttles for functional tests.
+
+    ``APIView.throttle_classes`` is bound at import from settings, so clearing
+    ``REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES']`` alone does not disable them.
+    Opt out with ``@pytest.mark.enable_throttles``.
+    """
+    if request.node.get_closest_marker("enable_throttles"):
+        yield
+        return
+    from rest_framework.views import APIView
+
+    monkeypatch.setattr(APIView, "throttle_classes", [])
+    yield
+
+
 @pytest.fixture
 def api_client():
     return APIClient()
@@ -39,7 +56,6 @@ def csrf_headers(csrf_api_client):
     from tests.helpers import csrf_headers as _csrf_headers
 
     return _csrf_headers(csrf_api_client)
-
 
 
 @pytest.fixture

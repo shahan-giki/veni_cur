@@ -9,6 +9,7 @@ import { AccountPage } from "../pages/AccountPage";
 import { LoginPage } from "../pages/LoginPage";
 import { renderWithProviders } from "../test/testUtils";
 import { Header } from "../components/layout/Header";
+import { Footer } from "../components/layout/Footer";
 
 vi.mock("../api/auth", () => ({
   getCurrentUser: vi.fn(),
@@ -62,15 +63,20 @@ describe("AuthProvider", () => {
     expect(screen.getByText("user@veni.test")).toBeInTheDocument();
   });
 
-  it("header shows sign in links when logged out", async () => {
+  it("header shows no sign in; auth lives in footer", async () => {
     renderWithProviders(
       <AuthProvider>
         <Header />
+        <Footer />
       </AuthProvider>
     );
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: /sign in/i })).toBeInTheDocument();
+      expect(screen.queryByRole("navigation", { name: /primary/i })).toBeInTheDocument();
     });
+    expect(
+      screen.queryByRole("navigation", { name: /primary/i })!.querySelector('a[href="/login"]')
+    ).toBeNull();
+    expect(await screen.findByRole("link", { name: /sign in/i })).toHaveAttribute("href", "/login");
   });
 
   it("login success calls API", async () => {

@@ -3,7 +3,7 @@ import pytest
 from apps.accounts.models import User, UserRole
 from apps.orders.models import OrderStatus
 from apps.payments.models import Payment, PaymentStatus
-from tests.helpers import csrf_headers as _csrf_headers
+from tests.helpers import CHECKOUT_CONTACT, csrf_headers as _csrf_headers
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def _checkout(client, customer_user, published_product, headers):
         format="json",
         **headers,
     )
-    return client.post("/api/v1/checkout/", **headers)
+    return client.post("/api/v1/checkout/", CHECKOUT_CONTACT, format="json", **headers)
 
 
 def _presign(client, order_id, headers, **extra):
@@ -215,3 +215,78 @@ def test_admin_proof_presigned_read(
     )
     assert proof.status_code == 200
     assert "fake-s3.test" in proof.data["url"]
+
+
+@pytest.mark.django_db
+def test_guest_can_presign_with_access_token(
+    csrf_api_client, published_product, settings
+):
+    settings.PAYMENT_PROOF_STORAGE_BACKEND = "memory"
+    headers = _csrf_headers(csrf_api_client)
+    variant = published_product.variants.first()
+    csrf_api_client.post(
+        "/api/v1/cart/items/",
+        {"variant_id": variant.id, "quantity": 1},
+        format="json",
+        **headers,
+    )
+    checkout = csrf_api_client.post(
+        "/api/v1/checkout/guest/", CHECKOUT_CONTACT, format="json", **headers
+    )
+    assert checkout.status_code == 201
+    order_id = checkout.data["id"]
+    token = checkout.data["access_token"]
+    # New anonymous client (no login)
+    headers2 = _csrf_headers(csrf_api_client)
+    csrf_api_client.logout()
+    headers2 = _csrf_headers(csrf_api_client)
+    presign = _presign(
+        csrf_api_client, order_id, headers2, access_token=token
+    )
+    assert presign.status_code == 200
+    confirm = csrf_api_client.post(
+        "/api/v1/payments/confirm/",
+        {
+            "order_id": order_id,
+            "s3_key": presign.data["s3_key"],
+            "access_token": token,
+        },
+        format="json",
+        **headers2,
+    )
+    assert confirm.status_code == 200
+
+
+@pytest.mark.django_db
+def test_guest_cannot_presign_with_wrong_token(
+    csrf_api_client, published_product, settings
+):
+    settings.PAYMENT_PROOF_STORAGE_BACKEND = "memory"
+    headers = _csrf_headers(csrf_api_client)
+    variant = published_product.variants.first()
+    csrf_api_client.post(
+        "/api/v1/cart/items/",
+        {"variant_id": variant.id, "quantity": 1},
+        format="json",
+        **headers,
+    )
+    checkout = csrf_api_client.post(
+        "/api/v1/checkout/guest/", CHECKOUT_CONTACT, format="json", **headers
+    )
+    order_id = checkout.data["id"]
+    csrf_api_client.logout()
+    headers2 = _csrf_headers(csrf_api_client)
+    bad = _presign(
+        csrf_api_client,
+        order_id,
+        headers2,
+        access_token="00000000-0000-0000-0000-000000000099",
+    )
+    assert bad.status_code == 404
+
+
+@pytest.mark.django_db
+def test_anonymous_instructions_allowed(csrf_api_client):
+    resp = csrf_api_client.get("/api/v1/payments/instructions/")
+    assert resp.status_code == 200
+    assert resp.data["currency"] == "PKR"

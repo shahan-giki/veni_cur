@@ -2,16 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addCartItem, clearCart, getCart, removeCartItem, updateCartItem } from "../api/cart";
 import { ApiError } from "../api/client";
 import { cartKeys } from "../app/queryClient";
-import { useAuth } from "../auth/AuthProvider";
 
 export function useCartQuery() {
-  const { status, user } = useAuth();
-  const isCustomer = status === "authenticated" && user?.role === "CUSTOMER";
-
   return useQuery({
     queryKey: cartKeys.all,
     queryFn: getCart,
-    enabled: isCustomer,
     retry: (failureCount, error) => {
       if (error instanceof ApiError && error.status === 401) return false;
       return failureCount < 1;

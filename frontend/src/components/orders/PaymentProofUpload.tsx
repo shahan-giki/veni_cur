@@ -15,12 +15,53 @@ import { formatPaymentStatus } from "../../lib/paymentDisplay";
 
 type Props = {
   orderId: number;
+  /** Public display number (e.g. VENI-00042) for bank transfer reference. */
+  orderNumber: string;
   orderStatus: OrderStatus;
   payment: CustomerPaymentState;
   orderTotal: string;
+  accessToken?: string;
 };
 
-export function PaymentProofUpload({ orderId, orderStatus, payment, orderTotal }: Props) {
+function CopyableValue({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function onCopy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <div className="payment-copy-row">
+      <dt>{label}</dt>
+      <dd>
+        <code className="payment-copy-row__value">{value}</code>
+        <button
+          type="button"
+          className="payment-copy-row__btn"
+          onClick={() => void onCopy()}
+          aria-label={`Copy ${label}`}
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </dd>
+    </div>
+  );
+}
+
+export function PaymentProofUpload({
+  orderId,
+  orderNumber,
+  orderStatus,
+  payment,
+  orderTotal,
+  accessToken,
+}: Props) {
   const queryClient = useQueryClient();
   const instructionsQuery = useQuery({
     queryKey: ["payments", "instructions"],
@@ -52,10 +93,20 @@ export function PaymentProofUpload({ orderId, orderStatus, payment, orderTotal }
     setSubmitting(true);
     setError(null);
     try {
-      const presign = await presignPaymentProof(orderId, file);
+      const presign = await presignPaymentProof(orderId, file, accessToken);
       await uploadProofToS3(presign, file);
-      await confirmPaymentProof(orderId, presign.s3_key, referenceNumber.trim());
+      await confirmPaymentProof(
+        orderId,
+        presign.s3_key,
+        referenceNumber.trim(),
+        accessToken
+      );
       await queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
+      if (accessToken) {
+        await queryClient.invalidateQueries({
+          queryKey: orderKeys.byToken(accessToken),
+        });
+      }
       setFile(null);
       setReferenceNumber("");
     } catch (err) {
@@ -73,6 +124,13 @@ export function PaymentProofUpload({ orderId, orderStatus, payment, orderTotal }
       <p className="payment-panel__amount">
         Amount due: <strong>{orderTotal}</strong> (PKR)
       </p>
+      <p className="payment-panel__order-ref">
+        Order number: <strong>{orderNumber}</strong>
+        <span className="payment-panel__order-hint">
+          {" "}
+          — use as your transfer reference
+        </span>
+      </p>
       {instructionsQuery.data ? (
         <dl className="payment-panel__bank">
           <div>
@@ -83,14 +141,11 @@ export function PaymentProofUpload({ orderId, orderStatus, payment, orderTotal }
             <dt>Account title</dt>
             <dd>{instructionsQuery.data.account_title}</dd>
           </div>
-          <div>
-            <dt>Account number</dt>
-            <dd>{instructionsQuery.data.account_number}</dd>
-          </div>
-          <div>
-            <dt>IBAN</dt>
-            <dd>{instructionsQuery.data.iban}</dd>
-          </div>
+          <CopyableValue
+            label="Account number"
+            value={instructionsQuery.data.account_number}
+          />
+          <CopyableValue label="IBAN" value={instructionsQuery.data.iban} />
         </dl>
       ) : null}
       {instructionsQuery.data ? (
@@ -111,7 +166,10 @@ export function PaymentProofUpload({ orderId, orderStatus, payment, orderTotal }
         </p>
       ) : null}
       {payment.can_upload_proof ? (
-        <form className="auth-form" onSubmit={(e) => void onSubmit(e)}>
+        <form
+          className="auth-form payment-panel__form"
+          onSubmit={(e) => void onSubmit(e)}
+        >
           <div className="auth-form__field">
             <label htmlFor="payment-reference">Transfer reference (optional)</label>
             <input
@@ -121,12 +179,14 @@ export function PaymentProofUpload({ orderId, orderStatus, payment, orderTotal }
               value={referenceNumber}
               onChange={(e) => setReferenceNumber(e.target.value)}
               autoComplete="off"
+              placeholder={orderNumber}
             />
           </div>
           <div className="auth-form__field">
             <label htmlFor="payment-proof">Payment proof</label>
             <input
               id="payment-proof"
+              className="payment-panel__file"
               type="file"
               accept="image/jpeg,image/png,application/pdf"
               onChange={onFileChange}
@@ -137,7 +197,12 @@ export function PaymentProofUpload({ orderId, orderStatus, payment, orderTotal }
               {error}
             </p>
           ) : null}
-          <Button type="submit" variant="primary" disabled={submitting}>
+          <Button
+            type="submit"
+            variant="primary"
+            className="btn--soft payment-panel__submit"
+            disabled={submitting}
+          >
             {submitting ? "Uploading…" : "Submit payment proof"}
           </Button>
         </form>

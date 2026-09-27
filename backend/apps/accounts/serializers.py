@@ -1,7 +1,7 @@
 from django.contrib.auth import password_validation
 from rest_framework import serializers
 
-from apps.accounts.models import User, UserRole
+from apps.accounts.models import User
 
 
 class PublicUserSerializer(serializers.ModelSerializer):
@@ -38,20 +38,6 @@ class RegisterSerializer(serializers.Serializer):
         password_validation.validate_password(value)
         return value
 
-    def validate(self, attrs):
-        # Ignore any client-supplied role (including nested payloads).
-        attrs.pop("role", None)
-        return attrs
-
-    def create(self, validated_data):
-        return User.objects.create_user(
-            email=validated_data["email"],
-            password=validated_data["password"],
-            first_name=validated_data.get("first_name", ""),
-            last_name=validated_data.get("last_name", ""),
-            role=UserRole.CUSTOMER,
-        )
-
 
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=254)
@@ -59,6 +45,32 @@ class LoginSerializer(serializers.Serializer):
 
     def validate_email(self, value: str) -> str:
         return User.objects.normalize_email(value.strip().lower())
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=254)
+
+    def validate_email(self, value: str) -> str:
+        return User.objects.normalize_email(value.strip().lower())
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_new_password(self, value: str) -> str:
+        password_validation.validate_password(value)
+        return value
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    new_password = serializers.CharField(write_only=True, trim_whitespace=False)
+
+    def validate_new_password(self, value: str) -> str:
+        password_validation.validate_password(value)
+        return value
 
 
 class SafeUserSerializer(serializers.ModelSerializer):

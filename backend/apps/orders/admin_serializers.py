@@ -28,7 +28,7 @@ class AdminOrderCustomerSerializer(serializers.Serializer):
 
 
 class AdminOrderListSerializer(serializers.ModelSerializer):
-    customer_email = serializers.EmailField(source="customer.email", read_only=True)
+    customer_email = serializers.SerializerMethodField()
     item_count = serializers.SerializerMethodField()
     pending_payment_id = serializers.SerializerMethodField()
 
@@ -37,6 +37,7 @@ class AdminOrderListSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "status",
+            "payment_method",
             "customer_email",
             "subtotal",
             "total",
@@ -45,6 +46,11 @@ class AdminOrderListSerializer(serializers.ModelSerializer):
             "created_at",
         )
         read_only_fields = fields
+
+    def get_customer_email(self, obj: Order) -> str:
+        if obj.customer_id and obj.customer:
+            return obj.customer.email
+        return obj.contact_email or ""
 
     def get_item_count(self, obj: Order) -> int:
         if hasattr(obj, "_item_count"):
@@ -66,7 +72,16 @@ class AdminOrderDetailSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "status",
+            "payment_method",
             "customer",
+            "contact_name",
+            "contact_phone",
+            "contact_email",
+            "shipping_address",
+            "shipping_city",
+            "courier_name",
+            "courier_tracking_number",
+            "courier_notes",
             "subtotal",
             "total",
             "items",
@@ -76,8 +91,10 @@ class AdminOrderDetailSerializer(serializers.ModelSerializer):
         )
         read_only_fields = fields
 
-    def get_customer(self, obj: Order) -> dict:
+    def get_customer(self, obj: Order) -> dict | None:
         user = obj.customer
+        if user is None:
+            return None
         return {
             "id": user.id,
             "email": user.email,
@@ -93,3 +110,9 @@ class AdminOrderStatusSerializer(serializers.Serializer):
             ("CANCELLED", "Cancelled"),
         ]
     )
+
+
+class AdminCourierDetailsSerializer(serializers.Serializer):
+    courier_name = serializers.CharField(max_length=80, allow_blank=True)
+    tracking_number = serializers.CharField(max_length=120, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True, default="")

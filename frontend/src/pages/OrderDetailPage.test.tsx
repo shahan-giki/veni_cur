@@ -36,6 +36,8 @@ vi.mock("../api/payments", () => ({
 
 const baseOrder = {
   id: 42,
+  status: "PENDING_PAYMENT" as const,
+  payment_method: "MANUAL_TRANSFER" as const,
   subtotal: "100.00",
   total: "100.00",
   item_count: 1,
@@ -67,10 +69,10 @@ describe("OrderDetailPage", () => {
   beforeEach(() => {
     vi.mocked(paymentsApi.getPaymentInstructions).mockResolvedValue({
       currency: "PKR",
-      bank_name: "Habib Bank Limited",
-      account_title: "Veni (Pvt) Ltd",
-      account_number: "01234567890123",
-      iban: "PK00HABB0000123456789012",
+      bank_name: "Meezan Digital Centre",
+      account_title: "SHAHAN ALI",
+      account_number: "00300112202336",
+      iban: "PK27MEZN0000300112202336",
       instructions: "Use your order number as reference.",
     });
   });
@@ -89,10 +91,10 @@ describe("OrderDetailPage", () => {
       { routerProps: { initialEntries: ["/account/orders/42"] } }
     );
     await waitFor(() =>
-      expect(screen.getByRole("heading", { name: /order #42/i })).toBeInTheDocument()
+      expect(screen.getByRole("heading", { name: /order veni-00042/i })).toBeInTheDocument()
     );
     expect(screen.getByRole("button", { name: /submit payment proof/i })).toBeInTheDocument();
-    expect(await screen.findByText(/habib bank limited/i)).toBeInTheDocument();
+    expect(await screen.findByText(/meezan digital centre/i)).toBeInTheDocument();
   });
 
   it("shows verification badge when payment verification", async () => {

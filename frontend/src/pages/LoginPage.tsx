@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ApiError, formatApiValidationError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
+import { DocumentTitle } from "../components/seo/DocumentTitle";
 import { Button } from "../components/ui/Button";
 import { StatePanel } from "../components/ui/StatePanel";
 
@@ -44,6 +45,7 @@ export function LoginPage() {
 
   return (
     <section className="auth-page" aria-labelledby="login-heading">
+      <DocumentTitle title="Sign in" description="Access your Veni account." />
       <h1 id="login-heading">Sign in</h1>
       <p className="auth-page__lead">Access your Veni account to manage your profile.</p>
       <form className="auth-form" onSubmit={onSubmit} noValidate>
@@ -78,6 +80,9 @@ export function LoginPage() {
           {submitting ? "Signing in…" : "Sign in"}
         </Button>
       </form>
+      <p className="auth-page__footer">
+        <Link to="/forgot-password">Forgot password?</Link>
+      </p>
       <p className="auth-page__footer">
         New to Veni? <Link to="/register">Create an account</Link>
       </p>

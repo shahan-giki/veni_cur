@@ -1,10 +1,12 @@
 import { Link, useLocation, useParams } from "react-router-dom";
 import { formatApiValidationError } from "../api/client";
 import { LoadingGrid } from "../components/ui/LoadingGrid";
+import { DocumentTitle } from "../components/seo/DocumentTitle";
 import { StatePanel } from "../components/ui/StatePanel";
 import { useOrderDetail } from "../hooks/useOrders";
+import { OrderConfirmationMeta } from "../components/orders/OrderConfirmationMeta";
 import { PaymentProofUpload } from "../components/orders/PaymentProofUpload";
-import { formatOrderStatus, orderItemVariantLabel } from "../lib/orderDisplay";
+import { formatOrderNumber, orderItemVariantLabel } from "../lib/orderDisplay";
 import { formatPrice } from "../lib/formatPrice";
 
 export function OrderDetailPage() {
@@ -41,33 +43,36 @@ export function OrderDetailPage() {
 
   return (
     <section className="order-detail" aria-labelledby="order-detail-heading">
+      <DocumentTitle title={`Order ${formatOrderNumber(order.id)}`} />
       <header className="page-header">
-        <h1 id="order-detail-heading">Order #{order.id}</h1>
+        <h1 id="order-detail-heading">Order {formatOrderNumber(order.id)}</h1>
         {placed ? (
-          <p className="add-to-cart__ok" role="status">
-            Thank you — your order was placed. Submit your payment proof below when ready.
+          <p className="order-confirm-banner" role="status">
+            {order.payment_method === "CASH_ON_DELIVERY"
+              ? "Thank you — your cash on delivery order was placed. We will arrange courier delivery shortly."
+              : "Thank you — your order was placed. Submit your payment proof below when ready."}
           </p>
         ) : null}
-        <p>
-          {new Date(order.created_at).toLocaleString()} ·{" "}
-          {formatOrderStatus(order.status)}
-        </p>
-        <p>
+        <OrderConfirmationMeta
+          createdAt={order.created_at}
+          status={order.status}
+          paymentMethod={order.payment_method}
+        />
+        <p className="order-confirm-nav">
           <Link to="/account/orders">All orders</Link> · <Link to="/account">Account</Link>
         </p>
       </header>
       <ul className="checkout-lines" aria-label="Order items">
         {order.items.map((item) => (
           <li key={item.id} className="checkout-line">
-            <div>
+            <div className="checkout-line__info">
               <strong>{item.product_name_snapshot}</strong>
-              <p className="checkout-line__meta">
-                {orderItemVariantLabel(item)}
-                {item.sku_snapshot ? ` · SKU ${item.sku_snapshot}` : ""} · Qty{" "}
-                {item.quantity}
-              </p>
+              <span className="checkout-line__qty">Qty {item.quantity}</span>
+              {orderItemVariantLabel(item) ? (
+                <p className="checkout-line__meta">{orderItemVariantLabel(item)}</p>
+              ) : null}
             </div>
-            <span>{formatPrice(item.line_total)}</span>
+            <span className="checkout-line__total">{formatPrice(item.line_total)}</span>
           </li>
         ))}
       </ul>
@@ -80,6 +85,7 @@ export function OrderDetailPage() {
       </p>
       <PaymentProofUpload
         orderId={order.id}
+        orderNumber={formatOrderNumber(order.id)}
         orderStatus={order.status}
         payment={order.payment}
         orderTotal={formatPrice(order.total)}

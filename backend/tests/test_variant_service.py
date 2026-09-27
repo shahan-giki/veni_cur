@@ -12,6 +12,20 @@ def test_inventory_cannot_be_negative(published_product):
 
 
 @pytest.mark.django_db
+def test_create_variant_stores_color_attributes(published_product):
+    variant = variant_service.create_variant(
+        product=published_product,
+        sku="shawl-taupe-1",
+        label="Taupe",
+        inventory_count=3,
+        attributes={"color": "Taupe", "color_hex": "#8b7355"},
+    )
+    variant.refresh_from_db()
+    assert variant.attributes["color"] == "Taupe"
+    assert variant.attributes["color_hex"] == "#8b7355"
+
+
+@pytest.mark.django_db
 def test_sku_unique(published_product, category):
     from apps.catalog.models import ProductStatus
     from apps.catalog.services import product_service

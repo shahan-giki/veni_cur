@@ -11,29 +11,38 @@ vi.mock("../api/catalog", () => ({
 
 describe("HomePage", () => {
   beforeEach(() => {
-    vi.mocked(catalog.listCategories).mockResolvedValue([
-      {
-        id: 1,
-        name: "Skincare",
-        slug: "skincare",
-        parent: null,
-        parent_slug: null,
-        sort_order: 1,
-      },
-    ]);
     vi.mocked(catalog.listProducts).mockResolvedValue({
-      count: 0,
+      count: 1,
       next: null,
       previous: null,
-      results: [],
+      results: [
+        {
+          id: 1,
+          name: "Test Serum",
+          slug: "test-serum",
+          category_slug: "skincare",
+          description: "A serum",
+          effective_price: "999.00",
+          price_varies: false,
+          default_variant_id: 10,
+          primary_image_url: null,
+        },
+      ],
     });
   });
 
-  it("loads categories from API for discovery tiles", async () => {
+  it("leads with featured products", async () => {
     renderWithProviders(<HomePage />);
-    expect(await screen.findByRole("link", { name: "Skincare" })).toHaveAttribute(
+    expect(await screen.findByRole("link", { name: /Test Serum/ })).toHaveAttribute(
       "href",
-      "/categories/skincare"
+      "/products/test-serum"
     );
+    expect(screen.queryByRole("heading", { name: /authentic products/i })).not.toBeInTheDocument();
+  });
+
+  it("does not fetch categories: they live in the header tray", async () => {
+    renderWithProviders(<HomePage />);
+    await screen.findByRole("link", { name: /Test Serum/ });
+    expect(catalog.listCategories).not.toHaveBeenCalled();
   });
 });

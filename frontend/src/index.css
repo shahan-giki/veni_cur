@@ -24,12 +24,16 @@ h1,
 h2,
 h3 {
   font-family: var(--font-heading);
-  font-weight: 600;
+  font-weight: 500;
+  letter-spacing: var(--tracking-wide);
   margin: 0 0 var(--space-md);
 }
 
+/* Links match body colour in this palette, so they must not rely on colour alone. */
 a {
   color: var(--color-primary);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
 }
 
 :focus-visible {

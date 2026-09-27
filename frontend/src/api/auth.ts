@@ -39,3 +39,37 @@ export async function logout(): Promise<void> {
   await ensureCsrfCookie();
   await fetchJson<void>("/auth/logout/", { method: "POST" });
 }
+
+export async function requestPasswordReset(email: string): Promise<{ detail: string }> {
+  await ensureCsrfCookie();
+  return fetchJson("/auth/password/reset/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function confirmPasswordReset(payload: {
+  uid: string;
+  token: string;
+  new_password: string;
+}): Promise<{ detail: string }> {
+  await ensureCsrfCookie();
+  return fetchJson("/auth/password/reset/confirm/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function changePassword(payload: {
+  current_password: string;
+  new_password: string;
+}): Promise<{ detail: string }> {
+  await ensureCsrfCookie();
+  return fetchJson("/auth/password/change/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}

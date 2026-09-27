@@ -71,8 +71,9 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
 
   const response = await fetch(`${API_BASE}${path}`, {
     credentials: "include",
-    headers,
     ...init,
+    // Must come after `init`: it already merges init.headers, plus Accept and X-CSRFToken.
+    headers,
   });
   if (!response.ok) {
     throw await ApiError.fromResponse(response, path);

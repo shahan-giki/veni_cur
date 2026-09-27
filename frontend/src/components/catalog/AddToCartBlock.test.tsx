@@ -1,11 +1,16 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { Routes, Route } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import * as cartApi from "../../api/cart";
 import { AuthProvider } from "../../auth/AuthProvider";
 import { AddToCartBlock } from "./AddToCartBlock";
 import { renderWithProviders } from "../../test/testUtils";
+
+function PathProbe() {
+  const loc = useLocation();
+  return <div data-testid="path">{loc.pathname}</div>;
+}
 
 vi.mock("../../api/auth", () => ({
   getCurrentUser: vi.fn().mockResolvedValue({
@@ -58,7 +63,7 @@ describe("AddToCartBlock", () => {
     });
   });
 
-  it("adds to cart when customer is signed in", async () => {
+  it("adds to cart without requiring a signed-in Customer", async () => {
     const user = userEvent.setup();
     renderWithProviders(
       <AuthProvider>
@@ -69,21 +74,41 @@ describe("AddToCartBlock", () => {
     expect(cartApi.addCartItem).toHaveBeenCalledWith(5, 1);
   });
 
-  it("redirects to login when signed out", async () => {
+  it("buy now adds to cart then goes to checkout", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <AuthProvider>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <AddToCartBlock productName="Serum" selectedVariant={variant} />
+                <PathProbe />
+              </>
+            }
+          />
+          <Route path="/checkout" element={<PathProbe />} />
+        </Routes>
+      </AuthProvider>,
+      { routerProps: { initialEntries: ["/"] } }
+    );
+    await user.click(screen.getByRole("button", { name: /buy now/i }));
+    expect(cartApi.addCartItem).toHaveBeenCalledWith(5, 1);
+    expect(await screen.findByTestId("path")).toHaveTextContent("/checkout");
+  });
+
+  it("adds to cart when signed out", async () => {
     const auth = await import("../../api/auth");
     vi.mocked(auth.getCurrentUser).mockResolvedValue(null);
     const user = userEvent.setup();
     renderWithProviders(
       <AuthProvider>
-        <Routes>
-          <Route path="/" element={<AddToCartBlock productName="Serum" selectedVariant={variant} />} />
-          <Route path="/login" element={<h1>Sign in</h1>} />
-        </Routes>
-      </AuthProvider>,
-      { routerProps: { initialEntries: ["/"] } }
+        <AddToCartBlock productName="Serum" selectedVariant={variant} />
+      </AuthProvider>
     );
     await screen.findByRole("button", { name: /add to cart/i });
     await user.click(screen.getByRole("button", { name: /add to cart/i }));
-    expect(await screen.findByRole("heading", { name: /sign in/i })).toBeInTheDocument();
+    expect(cartApi.addCartItem).toHaveBeenCalledWith(5, 1);
   });
 });

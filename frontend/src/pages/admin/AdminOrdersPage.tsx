@@ -3,7 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { listAdminOrders } from "../../api/admin/orders";
 import { formatApiValidationError } from "../../api/client";
 import { formatPrice } from "../../lib/formatPrice";
-import { formatOrderStatus } from "../../lib/orderDisplay";
+import { formatOrderNumber, formatOrderStatus } from "../../lib/orderDisplay";
 import { LoadingGrid } from "../../components/ui/LoadingGrid";
 import { StatePanel } from "../../components/ui/StatePanel";
 
@@ -74,7 +74,9 @@ export function AdminOrdersPage() {
                 }
               >
                 <td>
-                  <Link to={`/admin/orders/${order.id}`}>#{order.id}</Link>
+                  <Link to={`/admin/orders/${order.id}`}>
+                    {formatOrderNumber(order.id)}
+                  </Link>
                 </td>
                 <td>{order.customer_email}</td>
                 <td>

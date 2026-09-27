@@ -1,4 +1,4 @@
-import { fetchJson, getApiBaseUrl } from "./client";
+import { fetchJson } from "./client";
 import type {
   Paginated,
   PublicCategory,
@@ -6,8 +6,6 @@ import type {
   PublicProductDetail,
   PublicProductListItem,
 } from "./types/catalog";
-
-export { getApiBaseUrl };
 
 export type ProductListParams = {
   category?: string;

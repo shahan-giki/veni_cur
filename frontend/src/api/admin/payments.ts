@@ -1,18 +1,12 @@
 import { ensureCsrfCookie, fetchJson } from "../client";
+import type { PaymentRecord } from "../types/payment";
 
 export type AdminProofUrl = {
   url: string;
   expires_in: number;
 };
 
-export type PaymentRecord = {
-  id: number;
-  status: string;
-  amount: string;
-  reference_number: string;
-  created_at: string;
-  updated_at: string;
-};
+export type { PaymentRecord };
 
 export function getAdminPaymentProof(paymentId: number): Promise<AdminProofUrl> {
   return fetchJson(`/admin/payments/${paymentId}/proof/`);

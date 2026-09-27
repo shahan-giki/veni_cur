@@ -19,17 +19,19 @@ Django sessions + CSRF for mutating storefront routes (ADR-0001). `/api/v1/auth/
 
 ## Cart (Phase 6)
 
-Customer-only cart APIs; prices from server on each read/update. No checkout-side inventory reservation.
+Guest (session) and Customer cart APIs; prices from server on each read/update. Signing in merges the session cart into the Customer cart. No checkout-side inventory reservation.
 
 ## Checkout and orders (Phase 7)
 
 | Endpoint | Purpose |
 |----------|---------|
-| `POST /api/v1/checkout/` | Atomic checkout from authenticated customer's cart |
+| `POST /api/v1/checkout/` | Atomic checkout from authenticated Customer's cart (requires contact body) |
+| `POST /api/v1/checkout/guest/` | Atomic guest checkout from the **session cart** + contact (ADR-0003); clears that cart on success |
 | `GET /api/v1/orders/` | Customer order history (paginated) |
-| `GET /api/v1/orders/{id}/` | Order detail with immutable line snapshots |
+| `GET /api/v1/orders/{id}/` | Customer order detail with immutable line snapshots |
+| `GET /api/v1/orders/by-token/{access_token}/` | Guest order detail by opaque token |
 
-Checkout revalidates purchasability, recalculates prices from catalog, locks variant rows (`select_for_update`), decrements inventory, creates `Order` + `OrderItem` snapshots, clears cart — one transaction. Initial order status: `PENDING_PAYMENT`. **No inventory reservation at cart time.**
+Checkout revalidates purchasability, recalculates prices from catalog, locks variant rows (`select_for_update`), decrements inventory, freezes contact/shipping onto `Order`, creates `OrderItem` snapshots, clears the relevant cart — one transaction. `Order.total == Order.subtotal` (no shipping fee engine; ADR-0008). No saved address book at launch (ADR-0009). Initial order status: `PENDING_PAYMENT`. **No inventory reservation at cart time.**
 
 Product/variant FKs on `OrderItem` use `SET_NULL`; display uses snapshot fields.
 
@@ -44,7 +46,7 @@ Product/variant FKs on `OrderItem` use `SET_NULL`; display uses snapshot fields.
 | `POST /api/v1/admin/payments/{id}/reject/` | Admin: payment REJECTED; order → `PENDING_PAYMENT` |
 | `GET /api/v1/admin/payments/{id}/proof/` | Admin: presigned GET for proof object |
 
-Customer-only presign/confirm; order must belong to the session user. Upload only while order is `PENDING_PAYMENT` with no active PENDING/VERIFIED payment. Rejected payments remain as history; customer submits a new proof (new `Payment` row, ADR-0004). S3 keys: `payments/orders/{order_id}/{uuid}.ext`; bucket private (ADR-0005).
+Presign/confirm authorize by Customer ownership **or** guest `access_token` for that Order. Upload only while order is `PENDING_PAYMENT` with no active PENDING/VERIFIED payment. Rejected payments remain as history; a new proof creates a new `Payment` row (ADR-0004). S3 keys: `payments/orders/{order_id}/{uuid}.ext`; bucket private (ADR-0005).
 
 **Order status lifecycle:** `PENDING_PAYMENT` → `PAYMENT_VERIFICATION` (proof submitted) → `PROCESSING` (admin verify) → `SHIPPED` (later phases). Reject path: `PAYMENT_VERIFICATION` → `PENDING_PAYMENT`.
 

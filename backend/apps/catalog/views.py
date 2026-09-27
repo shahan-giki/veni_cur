@@ -1,16 +1,14 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import Prefetch, Q
+from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from apps.catalog.models import (
     Category,
     Product,
     ProductImage,
-    ProductStatus,
     ProductVariant,
 )
 from apps.catalog.serializers import (
@@ -34,6 +32,7 @@ from apps.catalog.services import (
     variant_service,
 )
 from apps.catalog.services.s3_storage import get_product_image_storage
+from common.exceptions import raise_drf_validation_error
 from common.pagination import VeniPageNumberPagination
 from common.permissions import IsAdmin
 
@@ -80,47 +79,12 @@ class PublicProductViewSet(
     pagination_class = VeniPageNumberPagination
 
     def get_queryset(self):
-        qs = (
-            Product.objects.filter(
-                is_active=True,
-                status=ProductStatus.PUBLISHED,
-                category__is_active=True,
-                category__is_visible=True,
-            )
-            .select_related("category")
-            .prefetch_related(
-                "images",
-                Prefetch(
-                    "variants",
-                    queryset=ProductVariant.objects.filter(is_active=True),
-                ),
-            )
+        params = self.request.query_params
+        return product_service.published_products(
+            category_slug=params.get("category"),
+            search=params.get("q"),
+            ordering=params.get("ordering"),
         )
-        category_slug = self.request.query_params.get("category")
-        if category_slug:
-            qs = qs.filter(category__slug=category_slug)
-        q = self.request.query_params.get("q")
-        if q:
-            qs = qs.filter(
-                Q(name__icontains=q)
-                | Q(description__icontains=q)
-                | Q(sku__icontains=q)
-                | Q(variants__sku__icontains=q)
-            ).distinct()
-        ordering = self.request.query_params.get("ordering", "name")
-        allowed = {
-            "name",
-            "-name",
-            "created_at",
-            "-created_at",
-            "base_price",
-            "-base_price",
-        }
-        if ordering in allowed:
-            qs = qs.order_by(ordering)
-        else:
-            qs = qs.order_by("name")
-        return qs
 
     def get_serializer_class(self):
         if self.action == "retrieve":
@@ -191,8 +155,7 @@ class AdminCategoryViewSet(viewsets.ModelViewSet):
         try:
             category_service.delete_category_if_safe(category)
         except DjangoValidationError as exc:
-            detail = exc.message_dict if hasattr(exc, "message_dict") else exc.messages
-            raise ValidationError(detail=detail)
+            raise_drf_validation_error(exc)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -308,8 +271,7 @@ class AdminProductImageViewSet(
                 **body.validated_data,
             )
         except DjangoValidationError as exc:
-            detail = exc.message_dict if hasattr(exc, "message_dict") else exc.messages
-            raise ValidationError(detail=detail)
+            raise_drf_validation_error(exc)
         return Response(
             {
                 "upload_url": presigned.url,
@@ -348,8 +310,7 @@ class AdminProductImageViewSet(
                 body.validated_data["ordered_image_ids"],
             )
         except DjangoValidationError as exc:
-            detail = exc.message_dict if hasattr(exc, "message_dict") else exc.messages
-            raise ValidationError(detail=detail)
+            raise_drf_validation_error(exc)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def perform_destroy(self, instance):

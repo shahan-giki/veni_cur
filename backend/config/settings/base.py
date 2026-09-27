@@ -105,14 +105,16 @@ CSRF_COOKIE_HTTPONLY = False  # SPA must read CSRF cookie for double-submit head
 CSRF_COOKIE_SAMESITE = "Lax"
 
 CORS_ALLOW_CREDENTIALS = True
+# Vite may be opened as localhost or 127.0.0.1 — Django CSRF treats them as distinct.
+_DEFAULT_SPA_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
 CORS_ALLOWED_ORIGINS = [
     o.strip()
-    for o in os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    for o in os.environ.get("CORS_ALLOWED_ORIGINS", _DEFAULT_SPA_ORIGINS).split(",")
     if o.strip()
 ]
 CSRF_TRUSTED_ORIGINS = [
     o.strip()
-    for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "http://localhost:5173").split(",")
+    for o in os.environ.get("CSRF_TRUSTED_ORIGINS", _DEFAULT_SPA_ORIGINS).split(",")
     if o.strip()
 ]
 
@@ -125,7 +127,22 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.AllowAny",
     ],
     "DEFAULT_PAGINATION_CLASS": "common.pagination.VeniPageNumberPagination",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.ScopedRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "auth": "30/minute",
+        "payment_upload": "20/minute",
+    },
 }
+
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@veni.store")
+VENI_NOTIFICATIONS_CONSOLE = (
+    os.environ.get("VENI_NOTIFICATIONS_CONSOLE", "true").lower() == "true"
+)
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Veni API",
@@ -147,20 +164,20 @@ PAYMENT_PROOF_STORAGE_BACKEND = os.environ.get(
 PAYMENT_PROOF_MAX_BYTES = int(
     os.environ.get("PAYMENT_PROOF_MAX_BYTES", str(5 * 1024 * 1024))
 )
-VENI_PAYMENT_BANK_NAME = os.environ.get("VENI_PAYMENT_BANK_NAME", "Habib Bank Limited")
-VENI_PAYMENT_ACCOUNT_TITLE = os.environ.get("VENI_PAYMENT_ACCOUNT_TITLE", "Veni (Pvt) Ltd")
+VENI_PAYMENT_BANK_NAME = os.environ.get("VENI_PAYMENT_BANK_NAME", "Meezan Digital Centre")
+VENI_PAYMENT_ACCOUNT_TITLE = os.environ.get("VENI_PAYMENT_ACCOUNT_TITLE", "SHAHAN ALI")
 VENI_PAYMENT_ACCOUNT_NUMBER = os.environ.get(
-    "VENI_PAYMENT_ACCOUNT_NUMBER", "01234567890123"
+    "VENI_PAYMENT_ACCOUNT_NUMBER", "00300112202336"
 )
 VENI_PAYMENT_IBAN = os.environ.get(
-    "VENI_PAYMENT_IBAN", "PK00HABB0000123456789012"
+    "VENI_PAYMENT_IBAN", "PK27MEZN0000300112202336"
 )
 VENI_MANUAL_PAYMENT_INSTRUCTIONS = os.environ.get(
     "VENI_MANUAL_PAYMENT_INSTRUCTIONS",
     (
-        "Transfer the exact order total to Veni via bank transfer or mobile wallet. "
-        "Use your order number as the payment reference, then upload a screenshot "
-        "of the confirmation on this page."
+        "Transfer the exact order total to the Meezan account above via bank transfer "
+        "or mobile wallet. Use your order number as the payment reference, then upload "
+        "a screenshot of the confirmation on this page."
     ),
 )
 S3_PRESIGN_UPLOAD_EXPIRY = int(os.environ.get("S3_PRESIGN_UPLOAD_EXPIRY", "3600"))

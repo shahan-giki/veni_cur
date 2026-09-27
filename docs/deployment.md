@@ -168,9 +168,15 @@ Optional overrides: `VENI_REPO_DIR`, `VENI_DEPLOY_BRANCH`, `VENI_STATIC_DIR`, `V
 
 - `curl -I https://yourdomain.com/api/v1/health/` → 200 JSON
 - Storefront loads; login and checkout work (session + CSRF)
-- React admin at `/admin/dashboard` (ADMIN user)
+- Guest checkout works without login; guest order page opens via `/orders/guest/<access_token>`
+- Payment proof upload works for Customer and guest-token flows
+- React admin at `/admin/dashboard` (ADMIN user) — pending payments + low stock visible
 - Django staff at `/django-admin/` (superuser)
 - S3 uploads use private bucket presigns only (no public bucket ACL)
+- Auth + payment upload throttles active (`auth` 30/min, `payment_upload` 20/min in settings)
+- Password reset email path configured (`EMAIL_BACKEND` / SMTP) or confirmed console-only for staging
+- `CORS_ALLOWED_ORIGINS` and `CSRF_TRUSTED_ORIGINS` include the live storefront origin(s) (`https://…` and any `127.0.0.1`/`localhost` used in staging)
+- Concurrent last-unit checkout test run against PostgreSQL in CI or staging (skipped on SQLite)
 
 ---
 
@@ -179,3 +185,11 @@ Optional overrides: `VENI_REPO_DIR`, `VENI_DEPLOY_BRANCH`, `VENI_STATIC_DIR`, `V
 - Never place `.env` or `.git` under the Nginx `root`; `veni.conf` denies `/.env` and `/.git` as a safeguard.
 - `config.settings.production` sets `DEBUG = False` unconditionally and requires database, hosts, CORS/CSRF, and S3 bucket configuration.
 - Prefer **IAM roles** on EC2 over long-lived access keys in `.env`.
+
+---
+
+## Backups and recovery
+
+- **Neon**: enable automated backups / point-in-time recovery on the production branch.
+- **S3**: enable versioning and keep block-public-access on the private media/proofs bucket.
+- Never commit real secrets; keep `infrastructure/.env.production.example` as the checklist only.

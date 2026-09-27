@@ -30,6 +30,7 @@ export type AdminVariant = {
   label: string;
   price: string | null;
   inventory_count: number;
+  attributes: Record<string, unknown>;
   is_default: boolean;
   is_active: boolean;
 };

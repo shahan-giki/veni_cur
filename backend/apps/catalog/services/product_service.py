@@ -2,9 +2,62 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Prefetch, Q, QuerySet
 from django.utils.text import slugify
 
-from apps.catalog.models import Product, ProductVariant
+from apps.catalog.models import Product, ProductStatus, ProductVariant
+
+PUBLIC_PRODUCT_ORDERINGS = frozenset(
+    {
+        "name",
+        "-name",
+        "created_at",
+        "-created_at",
+        "base_price",
+        "-base_price",
+    }
+)
+DEFAULT_PUBLIC_PRODUCT_ORDERING = "name"
+
+
+def published_products(
+    *,
+    category_slug: str | None = None,
+    search: str | None = None,
+    ordering: str | None = None,
+) -> QuerySet[Product]:
+    """Storefront-visible products: published and active, in a visible category.
+
+    Unsupported ``ordering`` values fall back to name; callers pass raw query params.
+    """
+    qs = (
+        Product.objects.filter(
+            is_active=True,
+            status=ProductStatus.PUBLISHED,
+            category__is_active=True,
+            category__is_visible=True,
+        )
+        .select_related("category")
+        .prefetch_related(
+            "images",
+            Prefetch(
+                "variants",
+                queryset=ProductVariant.objects.filter(is_active=True),
+            ),
+        )
+    )
+    if category_slug:
+        qs = qs.filter(category__slug=category_slug)
+    if search:
+        qs = qs.filter(
+            Q(name__icontains=search)
+            | Q(description__icontains=search)
+            | Q(sku__icontains=search)
+            | Q(variants__sku__icontains=search)
+        ).distinct()
+    if ordering not in PUBLIC_PRODUCT_ORDERINGS:
+        ordering = DEFAULT_PUBLIC_PRODUCT_ORDERING
+    return qs.order_by(ordering)
 
 
 def validate_product_prices(base_price: Decimal, sale_price: Decimal | None) -> None:

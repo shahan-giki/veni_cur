@@ -1,9 +1,22 @@
 import { ensureCsrfCookie, fetchJson } from "./client";
-import type { OrderDetail, PaginatedOrders } from "./types/order";
+import type { CheckoutContact, OrderDetail, PaginatedOrders } from "./types/order";
 
-export async function checkout(): Promise<OrderDetail> {
+export async function checkout(contact: CheckoutContact): Promise<OrderDetail> {
   await ensureCsrfCookie();
-  return fetchJson<OrderDetail>("/checkout/", { method: "POST" });
+  return fetchJson<OrderDetail>("/checkout/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(contact),
+  });
+}
+
+export async function guestCheckout(contact: CheckoutContact): Promise<OrderDetail> {
+  await ensureCsrfCookie();
+  return fetchJson<OrderDetail>("/checkout/guest/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(contact),
+  });
 }
 
 export function listOrders(page = 1): Promise<PaginatedOrders> {
@@ -15,4 +28,8 @@ export function listOrders(page = 1): Promise<PaginatedOrders> {
 
 export function getOrder(orderId: number): Promise<OrderDetail> {
   return fetchJson<OrderDetail>(`/orders/${orderId}/`);
+}
+
+export function getOrderByToken(accessToken: string): Promise<OrderDetail> {
+  return fetchJson<OrderDetail>(`/orders/by-token/${accessToken}/`);
 }

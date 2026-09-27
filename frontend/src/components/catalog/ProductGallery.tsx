@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PublicProductDetail } from "../../api/types/catalog";
 
 type Image = PublicProductDetail["images"][number];
@@ -8,65 +8,78 @@ type Props = {
   productName: string;
 };
 
+/** Tall swipeable product images with dot pagination. No thumbnail strip. */
 export function ProductGallery({ images, productName }: Props) {
-  const sorted = [...images].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id);
-  const withUrl = sorted.filter((img) => img.url);
-  const [selectedId, setSelectedId] = useState(withUrl[0]?.id ?? sorted[0]?.id ?? null);
+  const trackRef = useRef<HTMLUListElement>(null);
+  const [active, setActive] = useState(0);
 
-  const selected =
-    withUrl.find((img) => img.id === selectedId) ?? withUrl[0] ?? sorted[0] ?? null;
+  const slides = useMemo(
+    () =>
+      [...images]
+        .filter((img) => Boolean(img.url))
+        .sort((a, b) => a.sort_order - b.sort_order || a.id - b.id),
+    [images]
+  );
 
-  function onThumbKeyDown(e: KeyboardEvent, index: number) {
-    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-    e.preventDefault();
-    const next =
-      e.key === "ArrowRight"
-        ? Math.min(index + 1, withUrl.length - 1)
-        : Math.max(index - 1, 0);
-    const target = withUrl[next];
-    if (target) setSelectedId(target.id);
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track || slides.length <= 1) return;
+
+    function onScroll() {
+      if (!track) return;
+      const width = track.clientWidth;
+      if (width <= 0) return;
+      setActive(Math.round(track.scrollLeft / width));
+    }
+
+    track.addEventListener("scroll", onScroll, { passive: true });
+    return () => track.removeEventListener("scroll", onScroll);
+  }, [slides.length]);
+
+  function goTo(index: number) {
+    const track = trackRef.current;
+    if (!track) return;
+    track.scrollTo({ left: index * track.clientWidth, behavior: "smooth" });
   }
-
-  if (!selected) {
-    return (
-      <div className="gallery">
-        <div className="gallery__main">
-          <span className="product-card__placeholder">No image available</span>
-        </div>
-      </div>
-    );
-  }
-
-  const alt = selected.alt_text?.trim() || productName;
 
   return (
-    <div className="gallery">
-      <div className="gallery__main">
-        {selected.url ? (
-          <img src={selected.url} alt={alt} />
+    <div
+      className="gallery"
+      role="region"
+      aria-roledescription="carousel"
+      aria-label={`${productName} images`}
+    >
+      <ul ref={trackRef} className="gallery__track">
+        {slides.length === 0 ? (
+          <li className="gallery__slide gallery__slide--empty">
+            <span className="product-card__placeholder">No image available</span>
+          </li>
         ) : (
-          <span className="product-card__placeholder">Image unavailable</span>
-        )}
-      </div>
-      {withUrl.length > 1 ? (
-        <div className="gallery__thumbs" role="tablist" aria-label="Product images">
-          {withUrl.map((img, index) => {
-            const thumbAlt = img.alt_text?.trim() || `${productName} view ${index + 1}`;
+          slides.map((img, index) => {
+            const alt = img.alt_text?.trim() || `${productName} view ${index + 1}`;
             return (
-              <button
-                key={img.id}
-                type="button"
-                role="tab"
-                className="gallery__thumb"
-                aria-current={img.id === selected.id ? "true" : undefined}
-                aria-label={thumbAlt}
-                onClick={() => setSelectedId(img.id)}
-                onKeyDown={(e) => onThumbKeyDown(e, index)}
-              >
-                <img src={img.url!} alt="" />
-              </button>
+              <li key={img.id} className="gallery__slide">
+                <img src={img.url!} alt={alt} draggable={false} />
+              </li>
             );
-          })}
+          })
+        )}
+      </ul>
+      {slides.length > 1 ? (
+        <div className="gallery__dots" role="tablist" aria-label="Product images">
+          {slides.map((img, index) => (
+            <button
+              key={img.id}
+              type="button"
+              role="tab"
+              className={
+                index === active ? "gallery__dot gallery__dot--active" : "gallery__dot"
+              }
+              aria-label={`Show image ${index + 1} of ${slides.length}`}
+              aria-selected={index === active}
+              onClick={() => goTo(index)}
+            />
+          ))}
         </div>
       ) : null}
     </div>

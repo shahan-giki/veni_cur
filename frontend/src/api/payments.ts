@@ -11,7 +11,8 @@ export function getPaymentInstructions(): Promise<ManualPaymentInstructions> {
 
 export async function presignPaymentProof(
   orderId: number,
-  file: File
+  file: File,
+  accessToken?: string
 ): Promise<PresignPaymentProofResponse> {
   await ensureCsrfCookie();
   return fetchJson("/payments/presign/", {
@@ -22,6 +23,7 @@ export async function presignPaymentProof(
       file_type: file.type,
       file_name: file.name,
       byte_size: file.size,
+      ...(accessToken ? { access_token: accessToken } : {}),
     }),
   });
 }
@@ -29,7 +31,8 @@ export async function presignPaymentProof(
 export async function confirmPaymentProof(
   orderId: number,
   s3Key: string,
-  referenceNumber: string
+  referenceNumber: string,
+  accessToken?: string
 ): Promise<PaymentRecord> {
   await ensureCsrfCookie();
   return fetchJson("/payments/confirm/", {
@@ -39,6 +42,7 @@ export async function confirmPaymentProof(
       order_id: orderId,
       s3_key: s3Key,
       reference_number: referenceNumber,
+      ...(accessToken ? { access_token: accessToken } : {}),
     }),
   });
 }

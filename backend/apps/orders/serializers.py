@@ -21,6 +21,33 @@ class OrderItemSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class CheckoutContactSerializer(serializers.Serializer):
+    """Field names match ContactDetails so the view maps straight through."""
+
+    name = serializers.CharField(max_length=120)
+    phone = serializers.CharField(max_length=32)
+    email = serializers.EmailField()
+    address = serializers.CharField()
+    city = serializers.CharField(max_length=120)
+    payment_method = serializers.ChoiceField(
+        choices=[
+            ("MANUAL_TRANSFER", "Bank / wallet transfer"),
+            ("CASH_ON_DELIVERY", "Cash on delivery"),
+        ],
+        default="MANUAL_TRANSFER",
+        required=False,
+    )
+
+
+class GuestOrderLineSerializer(serializers.Serializer):
+    variant_id = serializers.IntegerField(min_value=1)
+    quantity = serializers.IntegerField(min_value=1)
+
+
+class GuestCheckoutSerializer(CheckoutContactSerializer):
+    lines = GuestOrderLineSerializer(many=True, allow_empty=False)
+
+
 class OrderListSerializer(serializers.ModelSerializer):
     item_count = serializers.SerializerMethodField()
     payment_status = serializers.SerializerMethodField()
@@ -30,6 +57,7 @@ class OrderListSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "status",
+            "payment_method",
             "subtotal",
             "total",
             "item_count",
@@ -55,7 +83,17 @@ class OrderDetailSerializer(OrderListSerializer):
     payment = serializers.SerializerMethodField()
 
     class Meta(OrderListSerializer.Meta):
-        fields = OrderListSerializer.Meta.fields + ("items", "payment", "updated_at")
+        fields = OrderListSerializer.Meta.fields + (
+            "items",
+            "payment",
+            "updated_at",
+            "contact_name",
+            "contact_phone",
+            "contact_email",
+            "shipping_address",
+            "shipping_city",
+            "access_token",
+        )
 
     def get_payment(self, obj: Order) -> dict:
         return CustomerPaymentStateSerializer(

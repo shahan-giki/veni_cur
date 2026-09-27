@@ -8,3 +8,17 @@ Before implementing features:
 4. Follow [`docs/engineering-workflow.md`](docs/engineering-workflow.md) and test at Django **service** seams per [`docs/testing-strategy.md`](docs/testing-strategy.md).
 
 Phase 1 complete: no business models or `/api/v1` routes until Phase 2+ approval.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on [`shahan-giki/veni_cur`](https://github.com/shahan-giki/veni_cur), via the `gh` CLI. See [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
+
+### Triage labels
+
+The five canonical roles, each label string equal to its name. See [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
+
+### Domain docs
+
+Single-context: root `CONTEXT.md` plus `docs/adr/`. See [`docs/agents/domain.md`](docs/agents/domain.md).

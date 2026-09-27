@@ -23,6 +23,8 @@ def test_public_product_list_and_detail(api_client, published_product):
     list_resp = api_client.get("/api/v1/products/")
     assert list_resp.status_code == 200
     assert list_resp.data["count"] == 1
+    default_variant = published_product.variants.get(is_default=True)
+    assert list_resp.data["results"][0]["default_variant_id"] == default_variant.id
     detail = api_client.get("/api/v1/products/test-serum/")
     assert detail.status_code == 200
     assert detail.data["slug"] == "test-serum"
@@ -211,3 +213,35 @@ def test_admin_presign_and_confirm(api_client, admin_user, published_product):
         format="json",
     )
     assert confirm.status_code == 201
+
+
+@pytest.mark.django_db
+def test_admin_can_create_color_variant_visible_on_storefront(
+    api_client, admin_user, published_product
+):
+    api_client.force_login(admin_user)
+    create = api_client.post(
+        "/api/v1/admin/variants/",
+        {
+            "product": published_product.pk,
+            "sku": "test-serum-navy",
+            "label": "Navy",
+            "inventory_count": 4,
+            "attributes": {"color": "Navy", "color_hex": "#1e3a5f"},
+            "is_default": False,
+            "is_active": True,
+        },
+        format="json",
+    )
+    assert create.status_code == 201, create.data
+    assert create.data["attributes"]["color"] == "Navy"
+    assert create.data["attributes"]["color_hex"] == "#1e3a5f"
+
+    detail = api_client.get(f"/api/v1/products/{published_product.slug}/")
+    assert detail.status_code == 200
+    colors = [
+        v["attributes"].get("color")
+        for v in detail.data["variants"]
+        if v.get("attributes")
+    ]
+    assert "Navy" in colors

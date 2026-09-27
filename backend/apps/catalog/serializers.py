@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from rest_framework import serializers
 
 from apps.catalog.models import (
@@ -8,6 +6,11 @@ from apps.catalog.models import (
     ProductImage,
     ProductVariant,
 )
+from apps.catalog.services.pricing import (
+    effective_product_price,
+    effective_variant_unit_price,
+)
+from apps.catalog.services.product_service import validate_product_prices
 
 
 class PublicCategorySerializer(serializers.ModelSerializer):
@@ -74,10 +77,7 @@ class PublicProductVariantSerializer(serializers.ModelSerializer):
         )
 
     def get_effective_price(self, obj: ProductVariant) -> str:
-        price = obj.price if obj.price is not None else obj.product.base_price
-        if obj.product.sale_price is not None:
-            price = obj.product.sale_price
-        return str(price)
+        return str(effective_variant_unit_price(obj))
 
 
 class PublicProductImageSerializer(serializers.ModelSerializer):
@@ -95,6 +95,8 @@ class PublicProductImageSerializer(serializers.ModelSerializer):
 class PublicProductListSerializer(serializers.ModelSerializer):
     category_slug = serializers.CharField(source="category.slug", read_only=True)
     effective_price = serializers.SerializerMethodField()
+    price_varies = serializers.SerializerMethodField()
+    default_variant_id = serializers.SerializerMethodField()
     primary_image_url = serializers.SerializerMethodField()
 
     class Meta:
@@ -106,12 +108,23 @@ class PublicProductListSerializer(serializers.ModelSerializer):
             "category_slug",
             "description",
             "effective_price",
+            "price_varies",
+            "default_variant_id",
             "primary_image_url",
         )
 
     def get_effective_price(self, obj: Product) -> str:
-        price = obj.sale_price if obj.sale_price is not None else obj.base_price
-        return str(price)
+        return str(effective_product_price(obj).amount)
+
+    def get_price_varies(self, obj: Product) -> bool:
+        return effective_product_price(obj).varies
+
+    def get_default_variant_id(self, obj: Product) -> int | None:
+        variants = list(obj.variants.all())
+        if not variants:
+            return None
+        default = next((v for v in variants if v.is_default), variants[0])
+        return default.id
 
     def get_primary_image_url(self, obj: Product) -> str | None:
         image = obj.images.order_by("sort_order", "id").first()
@@ -170,14 +183,8 @@ class AdminProductSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         base = attrs.get("base_price", getattr(self.instance, "base_price", None))
         sale = attrs.get("sale_price", getattr(self.instance, "sale_price", None))
-        if base is not None and sale is not None and sale > base:
-            raise serializers.ValidationError(
-                {"sale_price": "Sale price cannot exceed base price."}
-            )
-        if base is not None and base < Decimal("0"):
-            raise serializers.ValidationError(
-                {"base_price": "Price cannot be negative."}
-            )
+        if base is not None:
+            validate_product_prices(base, sale)
         return attrs
 
 

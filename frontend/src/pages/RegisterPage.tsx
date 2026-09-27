@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError, formatApiValidationError } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
+import { DocumentTitle } from "../components/seo/DocumentTitle";
 import { Button } from "../components/ui/Button";
 
 export function RegisterPage() {
@@ -42,8 +43,9 @@ export function RegisterPage() {
 
   return (
     <section className="auth-page" aria-labelledby="register-heading">
+      <DocumentTitle title="Create account" description="Register as a Veni customer." />
       <h1 id="register-heading">Create account</h1>
-      <p className="auth-page__lead">Register as a Veni customer. Checkout arrives in a later phase.</p>
+      <p className="auth-page__lead">Register as a Veni customer to shop and check out.</p>
       <form className="auth-form" onSubmit={onSubmit} noValidate>
         <div className="auth-form__field">
           <label htmlFor="register-email">Email</label>

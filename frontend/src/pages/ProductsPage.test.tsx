@@ -34,6 +34,8 @@ const mockProducts = {
       category_slug: "skincare",
       description: "A serum",
       effective_price: "999.00",
+      price_varies: false,
+      default_variant_id: 10,
       primary_image_url: null,
     },
   ],
@@ -55,7 +57,7 @@ describe("ProductsPage", () => {
     expect(await screen.findByText("Test Serum")).toBeInTheDocument();
   });
 
-  it("submits search to update listing", async () => {
+  it("submits search from the filters tray to update listing", async () => {
     const user = userEvent.setup();
     renderWithProviders(
       <Routes>
@@ -65,12 +67,34 @@ describe("ProductsPage", () => {
     );
     await screen.findByText("Test Serum");
     vi.mocked(catalog.listProducts).mockClear();
-    await user.type(screen.getByLabelText(/search products/i), "serum");
-    await user.click(screen.getByRole("button", { name: /^search$/i }));
+
+    await user.click(screen.getByRole("button", { name: /filters & sort/i }));
+    await user.type(await screen.findByLabelText(/^search$/i), "serum");
+    await user.click(screen.getByRole("button", { name: /apply search/i }));
+
     await waitFor(() =>
       expect(catalog.listProducts).toHaveBeenCalledWith(
         expect.objectContaining({ q: "serum", page: 1 })
       )
     );
+  });
+
+  it("closes the filters tray and restores focus to its trigger", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <Routes>
+        <Route path="/products" element={<ProductsPage />} />
+      </Routes>,
+      { routerProps: { initialEntries: ["/products"] } }
+    );
+    await screen.findByText("Test Serum");
+
+    const trigger = screen.getByRole("button", { name: /filters & sort/i });
+    await user.click(trigger);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
   });
 });

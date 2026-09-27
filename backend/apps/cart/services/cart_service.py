@@ -33,8 +33,19 @@ def _validate_quantity(quantity: int, inventory: int) -> None:
 
 
 @transaction.atomic
-def get_or_create_cart(user: User) -> Cart:
-    cart, _ = Cart.objects.select_for_update().get_or_create(user=user)
+def get_or_create_cart(
+    user: User | None = None, *, session_key: str | None = None
+) -> Cart:
+    if user is not None:
+        cart, _ = Cart.objects.select_for_update().get_or_create(
+            user=user, defaults={"session_key": None}
+        )
+        return cart
+    if not session_key:
+        raise ValidationError({"detail": "A session is required to hold a cart."})
+    cart, _ = Cart.objects.select_for_update().get_or_create(
+        session_key=session_key, defaults={"user": None}
+    )
     return cart
 
 
@@ -55,8 +66,10 @@ def _cart_queryset():
     )
 
 
-def get_cart_with_items(user: User) -> Cart:
-    cart = get_or_create_cart(user)
+def get_cart_with_items(
+    user: User | None = None, *, session_key: str | None = None
+) -> Cart:
+    cart = get_or_create_cart(user, session_key=session_key)
     return _cart_queryset().get(pk=cart.pk)
 
 
@@ -72,8 +85,14 @@ def calculate_totals(cart: Cart) -> CartTotals:
 
 
 @transaction.atomic
-def add_item(user: User, *, variant_id: int, quantity: int) -> Cart:
-    cart = get_or_create_cart(user)
+def add_item(
+    user: User | None = None,
+    *,
+    variant_id: int,
+    quantity: int,
+    session_key: str | None = None,
+) -> Cart:
+    cart = get_or_create_cart(user, session_key=session_key)
     variant = get_purchasable_variant(variant_id)
     _validate_quantity(quantity, variant.inventory_count)
 
@@ -94,12 +113,18 @@ def add_item(user: User, *, variant_id: int, quantity: int) -> Cart:
             quantity=quantity,
         )
     cart.save(update_fields=["updated_at"])
-    return get_cart_with_items(user)
+    return get_cart_with_items(user, session_key=session_key)
 
 
 @transaction.atomic
-def update_item_quantity(user: User, *, item_id: int, quantity: int) -> Cart:
-    cart = get_or_create_cart(user)
+def update_item_quantity(
+    user: User | None = None,
+    *,
+    item_id: int,
+    quantity: int,
+    session_key: str | None = None,
+) -> Cart:
+    cart = get_or_create_cart(user, session_key=session_key)
     item = (
         CartItem.objects.select_for_update()
         .select_related("product_variant", "product_variant__product")
@@ -114,25 +139,67 @@ def update_item_quantity(user: User, *, item_id: int, quantity: int) -> Cart:
     item.quantity = quantity
     item.save(update_fields=["quantity", "updated_at"])
     cart.save(update_fields=["updated_at"])
-    return get_cart_with_items(user)
+    return get_cart_with_items(user, session_key=session_key)
 
 
 @transaction.atomic
-def remove_item(user: User, *, item_id: int) -> Cart:
-    cart = get_or_create_cart(user)
+def remove_item(
+    user: User | None = None,
+    *,
+    item_id: int,
+    session_key: str | None = None,
+) -> Cart:
+    cart = get_or_create_cart(user, session_key=session_key)
     deleted, _ = CartItem.objects.filter(pk=item_id, cart=cart).delete()
     if not deleted:
         raise ValidationError({"detail": "Cart item not found."})
     cart.save(update_fields=["updated_at"])
-    return get_cart_with_items(user)
+    return get_cart_with_items(user, session_key=session_key)
 
 
 @transaction.atomic
-def clear_cart(user: User) -> Cart:
-    cart = get_or_create_cart(user)
+def clear_cart(
+    user: User | None = None, *, session_key: str | None = None
+) -> Cart:
+    cart = get_or_create_cart(user, session_key=session_key)
     cart.items.all().delete()
     cart.save(update_fields=["updated_at"])
-    return get_cart_with_items(user)
+    return get_cart_with_items(user, session_key=session_key)
+
+
+@transaction.atomic
+def merge_session_cart_into_user(*, user: User, session_key: str | None) -> None:
+    """Move a guest session cart into the Customer's cart after sign-in.
+
+    Capture ``session_key`` *before* Django cycles it on login.
+    """
+    if not session_key:
+        return
+    guest = (
+        Cart.objects.select_for_update()
+        .filter(session_key=session_key, user__isnull=True)
+        .first()
+    )
+    if guest is None:
+        return
+    user_cart = get_or_create_cart(user)
+    for item in CartItem.objects.select_for_update().filter(cart=guest):
+        existing = (
+            CartItem.objects.select_for_update()
+            .select_related("product_variant")
+            .filter(cart=user_cart, product_variant=item.product_variant)
+            .first()
+        )
+        if existing:
+            inventory = existing.product_variant.inventory_count
+            existing.quantity = min(existing.quantity + item.quantity, inventory)
+            existing.save(update_fields=["quantity", "updated_at"])
+            item.delete()
+        else:
+            item.cart = user_cart
+            item.save(update_fields=["cart", "updated_at"])
+    guest.delete()
+    user_cart.save(update_fields=["updated_at"])
 
 
 def primary_image_key_for_product(product_id: int) -> str | None:

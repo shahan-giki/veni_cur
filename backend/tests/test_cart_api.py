@@ -18,21 +18,75 @@ def other_customer(db):
 
 
 @pytest.mark.django_db
-def test_anonymous_cannot_get_cart(api_client):
+def test_anonymous_can_get_empty_cart(api_client):
     resp = api_client.get("/api/v1/cart/")
-    assert resp.status_code in (401, 403)
+    assert resp.status_code == 200
+    assert resp.data["items"] == []
+    assert resp.data["item_count"] == 0
 
 
 @pytest.mark.django_db
-def test_anonymous_cannot_add_to_cart(csrf_api_client):
+def test_anonymous_can_add_to_cart(csrf_api_client, published_product):
     headers = _csrf_headers(csrf_api_client)
+    variant = published_product.variants.first()
     resp = csrf_api_client.post(
         "/api/v1/cart/items/",
-        {"variant_id": 1, "quantity": 1},
+        {"variant_id": variant.id, "quantity": 1},
         format="json",
         **headers,
     )
-    assert resp.status_code in (401, 403)
+    assert resp.status_code == 200
+    assert resp.data["item_count"] == 1
+    assert Cart.objects.filter(user__isnull=True).count() == 1
+
+
+@pytest.mark.django_db
+def test_add_to_cart_accepts_vite_127_origin(csrf_api_client, published_product, settings):
+    """SPA on 127.0.0.1:5173 must pass CSRF Origin checks (not only localhost)."""
+    settings.CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+    headers = {
+        **_csrf_headers(csrf_api_client),
+        "HTTP_ORIGIN": "http://127.0.0.1:5173",
+        "HTTP_REFERER": "http://127.0.0.1:5173/products/test",
+    }
+    variant = published_product.variants.first()
+    resp = csrf_api_client.post(
+        "/api/v1/cart/items/",
+        {"variant_id": variant.id, "quantity": 1},
+        format="json",
+        **headers,
+    )
+    assert resp.status_code == 200, resp.data
+    assert resp.data["item_count"] == 1
+
+
+@pytest.mark.django_db
+def test_guest_cart_merges_on_login(
+    csrf_api_client, customer_user, published_product
+):
+    headers = _csrf_headers(csrf_api_client)
+    variant = published_product.variants.first()
+    csrf_api_client.post(
+        "/api/v1/cart/items/",
+        {"variant_id": variant.id, "quantity": 2},
+        format="json",
+        **headers,
+    )
+    login = csrf_api_client.post(
+        "/api/v1/auth/login/",
+        {"email": customer_user.email, "password": "customer-pass-123"},
+        format="json",
+        **headers,
+    )
+    assert login.status_code == 200
+    cart = csrf_api_client.get("/api/v1/cart/")
+    assert cart.status_code == 200
+    assert cart.data["item_count"] == 2
+    assert Cart.objects.filter(user=customer_user).count() == 1
+    assert Cart.objects.filter(user__isnull=True).count() == 0
 
 
 @pytest.mark.django_db

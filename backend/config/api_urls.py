@@ -3,6 +3,8 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.admin_views import AdminCustomerListView, AdminDashboardView
+
 
 class HealthView(APIView):
     authentication_classes = []
@@ -21,4 +23,6 @@ urlpatterns = [
     path("", include("apps.orders.urls")),
     path("", include("apps.payments.urls")),
     path("", include("apps.catalog.urls")),
+    path("admin/dashboard/", AdminDashboardView.as_view(), name="admin-dashboard"),
+    path("admin/customers/", AdminCustomerListView.as_view(), name="admin-customers"),
 ]

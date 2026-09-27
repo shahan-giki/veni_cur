@@ -4,19 +4,35 @@ from django.db.models import CheckConstraint, Q, UniqueConstraint
 
 
 class Cart(models.Model):
+    """A basket owned by a Customer *or* an anonymous browser session — never both."""
+
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="cart",
+        null=True,
+        blank=True,
     )
+    session_key = models.CharField(max_length=40, null=True, blank=True, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         db_table = "cart_cart"
+        constraints = [
+            CheckConstraint(
+                condition=(
+                    Q(user__isnull=False, session_key__isnull=True)
+                    | Q(user__isnull=True, session_key__isnull=False)
+                ),
+                name="cart_owner_xor",
+            ),
+        ]
 
     def __str__(self) -> str:
-        return f"Cart({self.user_id})"
+        if self.user_id:
+            return f"Cart(user={self.user_id})"
+        return f"Cart(session={self.session_key})"
 
 
 class CartItem(models.Model):

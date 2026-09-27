@@ -1,8 +1,27 @@
 import { ensureCsrfCookie, fetchJson } from "../client";
+import type { PaymentMethod } from "../types/order";
+
+export type CourierSlip = {
+  order_number: string;
+  consignee_name: string;
+  consignee_phone: string;
+  consignee_email: string;
+  consignee_address: string;
+  consignee_city: string;
+  pieces: number;
+  payment_mode: "COD" | "Prepaid";
+  cod_amount: string;
+  product_description: string;
+  order_total: string;
+  courier_name: string;
+  tracking_number: string;
+  notes: string;
+};
 
 export type AdminOrderSummary = {
   id: number;
   status: string;
+  payment_method: PaymentMethod;
   customer_email: string;
   subtotal: string;
   total: string;
@@ -17,7 +36,16 @@ export type AdminOrderDetail = AdminOrderSummary & {
     email: string;
     first_name: string;
     last_name: string;
-  };
+  } | null;
+  contact_name: string;
+  contact_phone: string;
+  contact_email: string;
+  shipping_address: string;
+  shipping_city: string;
+  courier_name: string;
+  courier_tracking_number: string;
+  courier_notes: string;
+  courier_slip?: CourierSlip;
   items: Array<{
     id: number;
     product_name_snapshot: string;
@@ -70,5 +98,17 @@ export async function patchAdminOrderStatus(
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),
+  });
+}
+
+export async function patchAdminOrderCourier(
+  id: number,
+  payload: { courier_name: string; tracking_number: string; notes?: string }
+): Promise<AdminOrderDetail> {
+  await ensureCsrfCookie();
+  return fetchJson(`/admin/orders/${id}/courier/`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
 }

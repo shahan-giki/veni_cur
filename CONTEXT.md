@@ -1,6 +1,6 @@
 # Veni
 
-Veni is a single-merchant, multi-category B2C e-commerce store. Customers browse Veni-owned products, build a cart across any categories, check out while logged in, pay manually, and upload payment proof. Administrators manage the catalog, orders, and payment verification.
+Veni is a single-merchant, multi-category B2C e-commerce store. Shoppers browse Veni-owned products, build a cart across any categories, check out (as a guest or signed-in Customer), pay manually, and upload payment proof. Administrators manage the catalog, orders, and payment verification.
 
 ## Language
 
@@ -9,8 +9,12 @@ A person with an account on Veni. Every user is either a Customer or an Admin.
 _Avoid_: Account (when meaning the person), member, client
 
 **Customer**:
-A User who shops on the storefront: browse, cart, checkout, orders, payment upload.
-_Avoid_: Buyer, shopper (informal only), guest (not used for checkout in initial scope)
+A User who shops on the storefront: browse, cart, checkout, orders, payment upload. Signing in is optional for a first purchase.
+_Avoid_: Buyer, shopper (informal only)
+
+**Guest**:
+A shopper without a User account. A Guest may hold a session Cart, place an Order with frozen contact/shipping details, and return to that Order via an opaque access token (not a password).
+_Avoid_: Anonymous user (implementation wording only), visitor (UI copy ok)
 
 **Admin**:
 A User who manages Veni’s catalog, orders, and payment verification through the admin console.
@@ -33,7 +37,7 @@ A gallery image for a product, stored in S3; Postgres holds metadata and object 
 _Avoid_: Asset, media blob
 
 **Cart**:
-The Customer’s pre-checkout basket of variant lines and quantities.
+The pre-checkout basket of variant lines and quantities. A guest holds a Cart in their browser session; signing in merges it into the Customer’s Cart. Login is not required to view or change a Cart.
 _Avoid_: Bag (UI label ok), basket (UI label ok)
 
 **Cart item**:
@@ -41,11 +45,11 @@ One line in a Cart: a variant and quantity. Prices shown in the cart come from t
 _Avoid_: Line item (use for orders), row
 
 **Checkout**:
-The authenticated flow that validates the cart, captures shipping/customer information, and creates an Order. Login is required before checkout.
+The flow that validates the cart (or guest lines), captures contact and shipping information, and creates an Order. Login is optional; guests and Customers both check out.
 _Avoid_: Purchase (verb), payment (checkout creates the order; payment is a separate step)
 
 **Order**:
-A placed purchase with frozen customer/shipping details and server-computed totals.
+A placed purchase with frozen contact/shipping details and server-computed totals. Guest Orders have no Customer FK; access uses the Order’s access token.
 _Avoid_: Transaction, purchase
 
 **Order item**:
@@ -53,12 +57,20 @@ A snapshot line on an Order: product name, variant label, unit price, quantity, 
 _Avoid_: Cart item (pre-checkout only)
 
 **Payment**:
-Manual payment record for an Order: proof upload, review state, and admin verification. There is no automatic payment gateway in initial scope.
+A record of how an Order is settled: either a manual transfer Payment with proof upload, or cash on delivery collected by courier (no proof file). There is no automatic card gateway in initial scope.
 _Avoid_: Transaction (ambiguous with card gateways), receipt (customer-facing proof ok)
 
 **Payment proof**:
-The screenshot or image a Customer uploads after paying outside the system. Stored privately in S3; admins review it before verifying or rejecting.
+The screenshot or image uploaded after paying outside the system (by a Customer or a Guest with Order access). Stored privately in S3; admins review it before verifying or rejecting.
 _Avoid_: Screenshot-only naming in domain docs (file may be image formats)
+
+**Shipping fee**:
+Not charged as a separate line at launch; Order total equals catalog subtotal until a fee policy is decided (ADR-0008).
+_Avoid_: Delivery charge (ok in future UI copy), freight
+
+**Saved address**:
+Not modeled at launch; checkout captures one-shot contact/shipping frozen onto the Order (ADR-0009).
+_Avoid_: Address book (future), shipping profile
 
 **Payment status**:
 The lifecycle of a Payment (e.g. pending review, verified, rejected). Only the backend and admins change verification outcomes.
@@ -71,6 +83,14 @@ _Avoid_: Shipping status as a separate concept until fulfillment is modeled
 **Manual payment**:
 Payment made outside Veni (bank transfer, wallet, etc.) before proof upload. Instructions are served by the backend, not invented on the client.
 _Avoid_: Offline payment (ok in UI copy), gateway payment (out of scope)
+
+**Cash on delivery (COD)**:
+A Payment method where the Customer pays the courier in cash when the parcel is delivered. COD Orders skip payment-proof upload and start in Processing so an Admin can prepare a courier booking.
+_Avoid_: COD-only slang in domain docs without expanding once; pay at door (UI copy ok)
+
+**Courier slip**:
+Admin-facing consignment fields derived from a frozen Order (consignee, city, pieces, COD amount, order number) for booking with an external courier. Tracking details are stored on the Order after booking.
+_Avoid_: Shipping label (ok in UI), logistics integration (not implied)
 
 **Storefront**:
 The customer-facing React application: catalog, cart, checkout, orders, payment upload.

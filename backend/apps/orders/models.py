@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from django.conf import settings
 from django.db import models
 from django.db.models import CheckConstraint, Q
@@ -11,12 +13,35 @@ class OrderStatus(models.TextChoices):
     CANCELLED = "CANCELLED", "Cancelled"
 
 
+class PaymentMethod(models.TextChoices):
+    MANUAL_TRANSFER = "MANUAL_TRANSFER", "Bank / wallet transfer"
+    CASH_ON_DELIVERY = "CASH_ON_DELIVERY", "Cash on delivery"
+
+
 class Order(models.Model):
+    # Null for a guest Order: identity then lives in the frozen contact fields below.
     customer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="orders",
+        null=True,
+        blank=True,
     )
+    # A guest's durable proof of Order access, stood in for a password (ADR-0003).
+    access_token = models.UUIDField(default=uuid4, editable=False, unique=True)
+    contact_name = models.CharField(max_length=120)
+    contact_phone = models.CharField(max_length=32)
+    contact_email = models.EmailField()
+    shipping_address = models.TextField()
+    shipping_city = models.CharField(max_length=120)
+    payment_method = models.CharField(
+        max_length=32,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.MANUAL_TRANSFER,
+    )
+    courier_name = models.CharField(max_length=80, blank=True, default="")
+    courier_tracking_number = models.CharField(max_length=120, blank=True, default="")
+    courier_notes = models.TextField(blank=True, default="")
     status = models.CharField(
         max_length=32,
         choices=OrderStatus.choices,

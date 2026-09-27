@@ -1,105 +1,170 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { useAuth } from "../../auth/AuthProvider";
-import { Button } from "../ui/Button";
+import { listCategories } from "../../api/catalog";
+import { catalogKeys } from "../../app/queryClient";
+import { Drawer } from "../ui/Drawer";
 import { HeaderCartLink } from "./HeaderCartLink";
+import { ThemeToggle } from "./ThemeToggle";
+
+function scrollToPageStart() {
+  window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+}
+
+function SearchIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </svg>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg
+      className="veni-menu-icon"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  );
+}
 
 export function Header() {
-  const { status, user, logout } = useAuth();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [navOpen, setNavOpen] = useState(false);
+  const [trayOpen, setTrayOpen] = useState(false);
+
+  const categoriesQuery = useQuery({
+    queryKey: catalogKeys.categories,
+    queryFn: listCategories,
+    enabled: trayOpen,
+  });
 
   function onSearchSubmit(e: FormEvent) {
     e.preventDefault();
     const q = query.trim();
-    if (!q) {
-      navigate("/products");
-      return;
-    }
-    navigate(`/products?q=${encodeURIComponent(q)}`);
-    setNavOpen(false);
+    setTrayOpen(false);
+    navigate(q ? `/products?q=${encodeURIComponent(q)}` : "/products");
+    scrollToPageStart();
   }
 
+  function goToAllProducts() {
+    setTrayOpen(false);
+    navigate("/products");
+    scrollToPageStart();
+  }
+
+  const categories =
+    categoriesQuery.data
+      ?.filter((c) => c.parent === null)
+      .slice()
+      .sort((a, b) => a.sort_order - b.sort_order) ?? [];
+
+  const traySearch = (
+    <form className="tray-search" role="search" onSubmit={onSearchSubmit}>
+      <label htmlFor="tray-search" className="visually-hidden">
+        Search products
+      </label>
+      <input
+        id="tray-search"
+        type="search"
+        name="q"
+        placeholder="Search products"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        autoComplete="off"
+      />
+      <button type="submit" className="tray-search__submit" aria-label="Search">
+        <SearchIcon />
+      </button>
+    </form>
+  );
+
   return (
-    <header className="veni-header">
-      <div className="veni-header__inner">
-        <Link to="/" className="veni-logo" onClick={() => setNavOpen(false)}>
-          Veni
-        </Link>
-        <Button
-          variant="ghost"
-          className="mobile-nav-toggle"
-          aria-expanded={navOpen}
-          aria-controls="veni-primary-nav"
-          onClick={() => setNavOpen((o) => !o)}
-        >
-          Menu
-        </Button>
-        <nav
-          id="veni-primary-nav"
-          className={`veni-nav veni-nav--collapsible${navOpen ? " is-open" : ""}`}
-          aria-label="Primary"
-        >
-          <NavLink to="/" end onClick={() => setNavOpen(false)}>
+    <>
+      <header className="veni-header">
+        <div className="veni-header__main">
+          <div className="veni-header__side">
+            <button
+              type="button"
+              className="veni-tray-toggle veni-tray-toggle--menu"
+              aria-label="Menu"
+              aria-expanded={trayOpen}
+              aria-haspopup="dialog"
+              onClick={() => setTrayOpen(true)}
+            >
+              <MenuIcon />
+            </button>
+          </div>
+
+          <Link to="/" className="veni-logo">
+            Veni
+          </Link>
+
+          <nav className="veni-header__side veni-header__side--end" aria-label="Primary">
+            <ThemeToggle />
+            <HeaderCartLink />
+          </nav>
+        </div>
+      </header>
+
+      <Drawer
+        open={trayOpen}
+        onClose={() => setTrayOpen(false)}
+        title="Categories"
+        showTitle={false}
+        headerContent={traySearch}
+        side="left"
+      >
+        <nav className="tray-nav" aria-label="Categories">
+          <NavLink to="/" end className="tray-link" onClick={() => setTrayOpen(false)}>
             Home
           </NavLink>
-          <NavLink to="/products" onClick={() => setNavOpen(false)}>
-            Products
-          </NavLink>
-          <a href="/#shop-by-category" onClick={() => setNavOpen(false)}>
-            Categories
-          </a>
-          <HeaderCartLink />
-          {status === "loading" ? (
-            <span aria-live="polite">…</span>
-          ) : user ? (
-            <>
-              <NavLink to="/account" onClick={() => setNavOpen(false)}>
-                Account
-              </NavLink>
-              <button
-                type="button"
-                className="veni-nav-link-btn"
-                onClick={() => {
-                  void logout().then(() => {
-                    setNavOpen(false);
-                    navigate("/");
-                  });
-                }}
-              >
-                Sign out
-              </button>
-            </>
+          <button type="button" className="tray-link tray-link--button" onClick={goToAllProducts}>
+            All products
+          </button>
+          <hr className="tray-rule" />
+          {categoriesQuery.isLoading ? (
+            <p className="tray-note" aria-busy="true">
+              Loading categories…
+            </p>
+          ) : categoriesQuery.isError ? (
+            <p className="tray-note">Could not load categories.</p>
+          ) : !categories.length ? (
+            <p className="tray-note">No categories yet.</p>
           ) : (
-            <>
-              <NavLink to="/login" onClick={() => setNavOpen(false)}>
-                Sign in
+            categories.map((cat) => (
+              <NavLink
+                key={cat.id}
+                to={`/categories/${cat.slug}`}
+                className="tray-link"
+                onClick={() => setTrayOpen(false)}
+              >
+                {cat.name}
               </NavLink>
-              <NavLink to="/register" onClick={() => setNavOpen(false)}>
-                Register
-              </NavLink>
-            </>
+            ))
           )}
         </nav>
-        <form className="veni-header-search" role="search" onSubmit={onSearchSubmit}>
-          <label className="visually-hidden" htmlFor="header-search">
-            Search products
-          </label>
-          <input
-            id="header-search"
-            type="search"
-            name="q"
-            placeholder="Search products…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            autoComplete="off"
-          />
-          <Button type="submit" variant="primary">
-            Search
-          </Button>
-        </form>
-      </div>
-    </header>
+      </Drawer>
+    </>
   );
 }

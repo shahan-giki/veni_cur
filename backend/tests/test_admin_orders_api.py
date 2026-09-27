@@ -102,3 +102,29 @@ def test_admin_cannot_ship_without_processing(
         **admin_headers,
     )
     assert resp.status_code == 400
+
+
+@pytest.mark.django_db
+def test_admin_cancel_restocks_inventory(
+    csrf_api_client, customer_user, admin_user, published_product
+):
+    variant = published_product.variants.get()
+    start_inventory = variant.inventory_count
+    headers = _csrf_headers(csrf_api_client)
+    checkout = _checkout(csrf_api_client, customer_user, published_product, headers)
+    order_id = checkout.data["id"]
+    variant.refresh_from_db()
+    assert variant.inventory_count == start_inventory - 1
+
+    csrf_api_client.force_login(admin_user)
+    admin_headers = _csrf_headers(csrf_api_client)
+    cancel = csrf_api_client.patch(
+        f"/api/v1/admin/orders/{order_id}/status/",
+        {"status": OrderStatus.CANCELLED},
+        format="json",
+        **admin_headers,
+    )
+    assert cancel.status_code == 200
+    assert cancel.data["status"] == OrderStatus.CANCELLED
+    variant.refresh_from_db()
+    assert variant.inventory_count == start_inventory

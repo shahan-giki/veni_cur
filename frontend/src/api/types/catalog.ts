@@ -1,5 +1,3 @@
-/** Phase 3 catalog API types — for Phase 4 storefront integration. */
-
 export type PublicCategory = {
   id: number;
   name: string;
@@ -30,6 +28,9 @@ export type PublicProductListItem = {
   category_slug: string;
   description: string;
   effective_price: string;
+  /** True when active variants disagree, so the price reads as a "from" figure. */
+  price_varies: boolean;
+  default_variant_id: number | null;
   primary_image_url: string | null;
 };
 

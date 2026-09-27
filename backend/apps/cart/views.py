@@ -1,10 +1,9 @@
 from django.core.exceptions import ValidationError as DjangoValidationError
 from drf_spectacular.utils import extend_schema
-from rest_framework.exceptions import ValidationError
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.models import UserRole
 from apps.cart.serializers import (
     CartItemQuantitySerializer,
     CartItemWriteSerializer,
@@ -14,7 +13,8 @@ from apps.cart.serializers import (
 from apps.cart.services import cart_service
 from apps.catalog.services.s3_storage import get_product_image_storage
 from common.authentication import SessionAuthenticationWithCsrf
-from common.permissions import IsCustomer
+from common.exceptions import raise_drf_validation_error
+from common.permissions import IsCustomerOrGuest
 
 
 def _image_context(cart) -> tuple[dict[str, str], dict[int, str]]:
@@ -45,35 +45,36 @@ def _cart_response(cart) -> Response:
     return Response(data)
 
 
-def _handle_service_errors(exc: DjangoValidationError):
-    if hasattr(exc, "message_dict"):
-        raise ValidationError(exc.message_dict) from exc
-    if hasattr(exc, "messages"):
-        raise ValidationError({"detail": exc.messages[0]}) from exc
-    raise ValidationError({"detail": str(exc)}) from exc
+def _cart_owner(request) -> dict:
+    user = request.user
+    if user.is_authenticated and getattr(user, "role", None) == UserRole.CUSTOMER:
+        return {"user": user, "session_key": None}
+    if not request.session.session_key:
+        request.session.save()
+    return {"user": None, "session_key": request.session.session_key}
 
 
 class CartDetailView(APIView):
     authentication_classes = [SessionAuthenticationWithCsrf]
-    permission_classes = [IsAuthenticated, IsCustomer]
+    permission_classes = [IsCustomerOrGuest]
 
     @extend_schema(responses={200: CartSerializer})
     def get(self, request):
-        cart = cart_service.get_cart_with_items(request.user)
+        cart = cart_service.get_cart_with_items(**_cart_owner(request))
         return _cart_response(cart)
 
     @extend_schema(responses={200: CartSerializer})
     def delete(self, request):
         try:
-            cart = cart_service.clear_cart(request.user)
+            cart = cart_service.clear_cart(**_cart_owner(request))
         except DjangoValidationError as exc:
-            _handle_service_errors(exc)
+            raise_drf_validation_error(exc)
         return _cart_response(cart)
 
 
 class CartItemListCreateView(APIView):
     authentication_classes = [SessionAuthenticationWithCsrf]
-    permission_classes = [IsAuthenticated, IsCustomer]
+    permission_classes = [IsCustomerOrGuest]
 
     @extend_schema(request=CartItemWriteSerializer, responses={200: CartSerializer})
     def post(self, request):
@@ -81,18 +82,18 @@ class CartItemListCreateView(APIView):
         serializer.is_valid(raise_exception=True)
         try:
             cart = cart_service.add_item(
-                request.user,
+                **_cart_owner(request),
                 variant_id=serializer.validated_data["variant_id"],
                 quantity=serializer.validated_data["quantity"],
             )
         except DjangoValidationError as exc:
-            _handle_service_errors(exc)
+            raise_drf_validation_error(exc)
         return _cart_response(cart)
 
 
 class CartItemDetailView(APIView):
     authentication_classes = [SessionAuthenticationWithCsrf]
-    permission_classes = [IsAuthenticated, IsCustomer]
+    permission_classes = [IsCustomerOrGuest]
 
     @extend_schema(request=CartItemQuantitySerializer, responses={200: CartSerializer})
     def patch(self, request, item_id: int):
@@ -100,18 +101,20 @@ class CartItemDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         try:
             cart = cart_service.update_item_quantity(
-                request.user,
+                **_cart_owner(request),
                 item_id=item_id,
                 quantity=serializer.validated_data["quantity"],
             )
         except DjangoValidationError as exc:
-            _handle_service_errors(exc)
+            raise_drf_validation_error(exc)
         return _cart_response(cart)
 
     @extend_schema(responses={200: CartSerializer})
     def delete(self, request, item_id: int):
         try:
-            cart = cart_service.remove_item(request.user, item_id=item_id)
+            cart = cart_service.remove_item(
+                **_cart_owner(request), item_id=item_id
+            )
         except DjangoValidationError as exc:
-            _handle_service_errors(exc)
+            raise_drf_validation_error(exc)
         return _cart_response(cart)

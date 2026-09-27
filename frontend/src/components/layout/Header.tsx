@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { listCategories } from "../../api/catalog";
 import { catalogKeys } from "../../app/queryClient";
 import { Drawer } from "../ui/Drawer";
 import { HeaderCartLink } from "./HeaderCartLink";
 import { ThemeToggle } from "./ThemeToggle";
+
+const SCROLL_COMPACT_AT = 16;
 
 function scrollToPageStart() {
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -52,6 +54,18 @@ export function Header() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [trayOpen, setTrayOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(
+    () => typeof window !== "undefined" && window.scrollY > SCROLL_COMPACT_AT
+  );
+
+  useEffect(() => {
+    function updateScrolled() {
+      setScrolled(window.scrollY > SCROLL_COMPACT_AT);
+    }
+    updateScrolled();
+    window.addEventListener("scroll", updateScrolled, { passive: true });
+    return () => window.removeEventListener("scroll", updateScrolled);
+  }, []);
 
   const categoriesQuery = useQuery({
     queryKey: catalogKeys.categories,
@@ -101,7 +115,11 @@ export function Header() {
 
   return (
     <>
-      <header className="veni-header" data-sticky="true">
+      <header
+        className="veni-header"
+        data-sticky="true"
+        data-scrolled={scrolled ? "true" : "false"}
+      >
         <div className="veni-header__main">
           <div className="veni-header__side">
             <button

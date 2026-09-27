@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as authApi from "../../api/auth";
@@ -79,6 +79,21 @@ describe("Header", () => {
     const banner = screen.getByRole("banner");
     expect(banner).toHaveClass("veni-header");
     expect(banner).toHaveAttribute("data-sticky", "true");
+  });
+
+  it("softens the header corners once the page has scrolled", async () => {
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true, writable: true });
+    renderHeader();
+
+    const banner = screen.getByRole("banner");
+    expect(banner).toHaveAttribute("data-scrolled", "false");
+
+    Object.defineProperty(window, "scrollY", { value: 48, configurable: true, writable: true });
+    await act(async () => {
+      window.dispatchEvent(new Event("scroll"));
+    });
+
+    expect(banner).toHaveAttribute("data-scrolled", "true");
   });
 
   it("opens the tray from the menu with search inside", async () => {

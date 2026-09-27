@@ -1,9 +1,12 @@
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import F
 from django.shortcuts import get_object_or_404
 
+from apps.catalog.models import ProductVariant
 from apps.orders.models import Order, OrderStatus
 from apps.payments.models import Payment, PaymentStatus
+from common.notifications import notify
 
 ADMIN_SETTABLE_STATUSES = frozenset(
     {OrderStatus.SHIPPED, OrderStatus.CANCELLED}
@@ -22,7 +25,10 @@ def update_order_status(*, order_id: int, new_status: str) -> Order:
         )
 
     with transaction.atomic():
-        order = get_object_or_404(Order.objects.select_for_update(), pk=order_id)
+        order = get_object_or_404(
+            Order.objects.select_for_update().prefetch_related("items"),
+            pk=order_id,
+        )
         current = order.status
 
         if new_status == OrderStatus.SHIPPED:
@@ -47,7 +53,18 @@ def update_order_status(*, order_id: int, new_status: str) -> Order:
                             )
                         }
                     )
+            for item in order.items.all():
+                if item.product_variant_id:
+                    ProductVariant.objects.filter(pk=item.product_variant_id).update(
+                        inventory_count=F("inventory_count") + item.quantity
+                    )
 
         order.status = new_status
         order.save(update_fields=["status", "updated_at"])
+        if new_status == OrderStatus.SHIPPED:
+            notify(
+                "order_shipped",
+                email=order.contact_email,
+                context={"order_id": order.id},
+            )
         return order

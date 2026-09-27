@@ -77,6 +77,7 @@ describe("AuthProvider", () => {
       screen.queryByRole("navigation", { name: /primary/i })!.querySelector('a[href="/login"]')
     ).toBeNull();
     expect(await screen.findByRole("link", { name: /sign in/i })).toHaveAttribute("href", "/login");
+    expect(screen.getByRole("link", { name: /sign in/i })).toHaveClass("veni-footer__auth");
   });
 
   it("login success calls API", async () => {

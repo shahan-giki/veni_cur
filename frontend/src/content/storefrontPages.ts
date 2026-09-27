@@ -13,6 +13,23 @@ export const CONTACT = {
   response: "We reply within one business day.",
 } as const;
 
+/**
+ * Storefront social profiles. Paste each full URL when ready
+ * (e.g. "https://instagram.com/veni"). Empty href stays listed as coming soon.
+ */
+export type SocialLink = {
+  label: string;
+  href: string;
+};
+
+export const SOCIALS: SocialLink[] = [
+  { label: "Instagram", href: "" },
+  { label: "Facebook", href: "" },
+  { label: "TikTok", href: "" },
+  { label: "WhatsApp", href: "" },
+  { label: "YouTube", href: "" },
+];
+
 /** Shown on every policy page until counsel-approved text is substituted. */
 export const POLICY_COUNSEL_NOTICE =
   "Draft for counsel review — this page describes how Veni currently operates. It is not formal legal advice and may change. Ask a qualified advisor before treating it as a binding consumer notice.";

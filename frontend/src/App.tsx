@@ -27,6 +27,9 @@ const NotFoundPage = lazy(() =>
 const ContactPage = lazy(() =>
   import("./pages/ContactPage").then((m) => ({ default: m.ContactPage }))
 );
+const SocialsPage = lazy(() =>
+  import("./pages/SocialsPage").then((m) => ({ default: m.SocialsPage }))
+);
 const ShippingReturnsPage = lazy(() =>
   import("./pages/ShippingReturnsPage").then((m) => ({
     default: m.ShippingReturnsPage,
@@ -196,6 +199,14 @@ function App() {
             element={
               <Suspense fallback={<PageFallback />}>
                 <ContactPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="socials"
+            element={
+              <Suspense fallback={<PageFallback />}>
+                <SocialsPage />
               </Suspense>
             }
           />

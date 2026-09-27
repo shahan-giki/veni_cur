@@ -20,6 +20,7 @@ export function Footer() {
         <p>© {new Date().getFullYear()} Veni</p>
         <nav aria-label="Footer" className="veni-footer__nav">
           <Link to="/contact">Contact</Link>
+          <Link to="/socials">Socials</Link>
           <Link to="/shipping-returns">Shipping & returns</Link>
           <Link to="/payment-info">Payment</Link>
           <Link to="/privacy">Privacy</Link>
@@ -42,7 +43,9 @@ export function Footer() {
               </button>
             </>
           ) : (
-            <Link to="/login">Sign in</Link>
+            <Link to="/login" className="veni-footer__auth">
+              Sign in
+            </Link>
           )}
         </nav>
       </div>

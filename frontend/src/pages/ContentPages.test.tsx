@@ -1,11 +1,12 @@
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { Routes, Route } from "react-router-dom";
-import { CONTACT, POLICY_COUNSEL_NOTICE } from "../content/storefrontPages";
+import { CONTACT, POLICY_COUNSEL_NOTICE, SOCIALS } from "../content/storefrontPages";
 import { renderWithProviders } from "../test/testUtils";
 import { ContactPage } from "./ContactPage";
 import { PrivacyPage } from "./PrivacyPage";
 import { ShippingReturnsPage } from "./ShippingReturnsPage";
+import { SocialsPage } from "./SocialsPage";
 import { TermsPage } from "./TermsPage";
 
 describe("ContactPage", () => {
@@ -21,6 +22,18 @@ describe("ContactPage", () => {
       "href",
       "/shipping-returns"
     );
+  });
+});
+
+describe("SocialsPage", () => {
+  it("lists social channels and a path back to contact", () => {
+    renderWithProviders(<SocialsPage />);
+
+    expect(screen.getByRole("heading", { name: "Socials" })).toBeInTheDocument();
+    for (const social of SOCIALS) {
+      expect(screen.getByText(social.label)).toBeInTheDocument();
+    }
+    expect(screen.getByRole("link", { name: "Contact" })).toHaveAttribute("href", "/contact");
   });
 });
 

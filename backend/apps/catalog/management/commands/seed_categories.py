@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 
 from apps.catalog.models import Category
+from apps.catalog.services.option_pool_service import seed_variant_options
 
 INITIAL_CATEGORIES = [
     ("Skincare", "skincare", 10),
@@ -12,7 +13,7 @@ INITIAL_CATEGORIES = [
 
 
 class Command(BaseCommand):
-    help = "Seed initial Veni categories (idempotent)."
+    help = "Seed initial Veni categories and variant option pool (idempotent)."
 
     def handle(self, *args, **options):
         for name, slug, sort_order in INITIAL_CATEGORIES:
@@ -27,4 +28,12 @@ class Command(BaseCommand):
             )
         self.stdout.write(
             self.style.SUCCESS(f"Seeded {len(INITIAL_CATEGORIES)} categories.")
+        )
+        result = seed_variant_options()
+        self.stdout.write(
+            self.style.SUCCESS(
+                "Variant options: "
+                f"created={result['created']} updated={result['updated']} "
+                f"links_created={result['links_created']}"
+            )
         )

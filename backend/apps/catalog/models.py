@@ -140,3 +140,71 @@ class ProductImage(models.Model):
 
     def __str__(self) -> str:
         return f"Image {self.id} for {self.product_id}"
+
+
+class VariantOptionKind(models.TextChoices):
+    TEXT = "text", "Text"
+    COLOR = "color", "Color"
+
+
+class VariantOptionDefinition(models.Model):
+    """Catalog-wide option axis (size, color, volume…) for Admin variant forms.
+
+    Stored in Postgres (Neon). Values chosen per variant still live on
+    ProductVariant.attributes (JSONB on Neon) — keeps SKU rows lean.
+    """
+
+    key = models.SlugField(max_length=64, unique=True)
+    label = models.CharField(max_length=80)
+    kind = models.CharField(
+        max_length=16,
+        choices=VariantOptionKind.choices,
+        default=VariantOptionKind.TEXT,
+    )
+    placeholder = models.CharField(max_length=160, blank=True, default="")
+    suggestions = models.JSONField(default=list, blank=True)
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    recommend_all = models.BooleanField(
+        default=False,
+        help_text="When true, surface this option for every category.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["sort_order", "label"]
+        indexes = [
+            models.Index(fields=["is_active", "sort_order"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.label
+
+
+class CategoryOptionRecommendation(models.Model):
+    """Which option definitions a Category should suggest first in Admin."""
+
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.CASCADE,
+        related_name="option_recommendations",
+    )
+    option = models.ForeignKey(
+        VariantOptionDefinition,
+        on_delete=models.CASCADE,
+        related_name="category_links",
+    )
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["sort_order", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["category", "option"],
+                name="uniq_category_option_recommendation",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.category.slug} → {self.option.key}"

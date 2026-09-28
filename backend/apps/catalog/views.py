@@ -2,7 +2,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from rest_framework import mixins, status, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 
 from apps.catalog.models import (
@@ -16,6 +16,7 @@ from apps.catalog.serializers import (
     AdminProductImageSerializer,
     AdminProductSerializer,
     AdminProductVariantSerializer,
+    AdminVariantOptionSerializer,
     ConfirmImageUploadSerializer,
     InventoryUpdateSerializer,
     PresignUploadRequestSerializer,
@@ -31,6 +32,7 @@ from apps.catalog.services import (
     product_service,
     variant_service,
 )
+from apps.catalog.services.option_pool_service import list_active_options
 from apps.catalog.services.s3_storage import get_product_image_storage
 from common.exceptions import raise_drf_validation_error
 from common.pagination import VeniPageNumberPagination
@@ -315,3 +317,22 @@ class AdminProductImageViewSet(
 
     def perform_destroy(self, instance):
         product_image_service.delete_product_image(instance)
+
+
+@api_view(["GET"])
+@permission_classes([IsAdmin])
+def admin_variant_options(request):
+    """List Postgres-backed option pool; optional category filter for recommendations."""
+    category_id = request.query_params.get("category")
+    category_slug = request.query_params.get("category_slug")
+    parsed_id = None
+    if category_id not in (None, ""):
+        try:
+            parsed_id = int(category_id)
+        except (TypeError, ValueError):
+            return Response(
+                {"category": "Must be an integer id."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+    rows = list_active_options(category_id=parsed_id, category_slug=category_slug or None)
+    return Response(AdminVariantOptionSerializer(rows, many=True).data)

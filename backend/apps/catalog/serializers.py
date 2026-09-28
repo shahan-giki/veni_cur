@@ -233,3 +233,13 @@ class ReorderImagesSerializer(serializers.Serializer):
 
 class InventoryUpdateSerializer(serializers.Serializer):
     inventory_count = serializers.IntegerField(min_value=0)
+
+
+class AdminVariantOptionSerializer(serializers.Serializer):
+    key = serializers.SlugField()
+    label = serializers.CharField()
+    kind = serializers.ChoiceField(choices=["text", "color"])
+    placeholder = serializers.CharField(allow_blank=True)
+    suggestions = serializers.ListField(child=serializers.CharField(), allow_empty=True)
+    sort_order = serializers.IntegerField()
+    recommended = serializers.BooleanField()

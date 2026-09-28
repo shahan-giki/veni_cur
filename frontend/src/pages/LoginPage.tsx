@@ -1,13 +1,21 @@
 import { useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ApiError, formatApiValidationError } from "../api/client";
+import type { PublicUser } from "../api/types/auth";
 import { useAuth } from "../auth/AuthProvider";
 import { DocumentTitle } from "../components/seo/DocumentTitle";
 import { Button } from "../components/ui/Button";
 import { StatePanel } from "../components/ui/StatePanel";
 
+function postLoginPath(user: PublicUser, from: string): string {
+  if (user.role === "ADMIN") {
+    return from.startsWith("/admin") ? from : "/admin";
+  }
+  return from;
+}
+
 export function LoginPage() {
-  const { status, login } = useAuth();
+  const { status, user, login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from =
@@ -21,8 +29,8 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  if (status === "authenticated") {
-    return <Navigate to={from} replace />;
+  if (status === "authenticated" && user) {
+    return <Navigate to={postLoginPath(user, from)} replace />;
   }
 
   async function onSubmit(e: FormEvent) {
@@ -30,8 +38,8 @@ export function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await login({ email: email.trim(), password });
-      navigate(from, { replace: true });
+      const signedIn = await login({ email: email.trim(), password });
+      navigate(postLoginPath(signedIn, from), { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
         setError("Security check failed. Refresh the page and try again.");

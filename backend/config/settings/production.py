@@ -55,8 +55,8 @@ DATABASES = {  # noqa: F405
     }
 }
 
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = os.environ.get("DJANGO_COOKIE_SECURE", "true").lower() == "true"
+CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # TLS termination is on Nginx; leave redirect off unless Django serves HTTPS directly.
 SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SECURE_SSL_REDIRECT", "false").lower() == "true"
@@ -70,13 +70,19 @@ AWS_REGION = os.environ.get("AWS_REGION") or os.environ.get("AWS_S3_REGION_NAME"
 AWS_S3_BUCKET_NAME = os.environ.get("AWS_S3_BUCKET_NAME") or os.environ.get(
     "AWS_STORAGE_BUCKET_NAME", ""
 )
-if not AWS_S3_BUCKET_NAME:
+_use_memory = os.environ.get("VENI_USE_MEMORY_STORAGE", "").lower() == "true"
+if _use_memory:
+    # Bootstrap / IP-only staging without S3 yet (uploads stay in-process).
+    PRODUCT_IMAGE_STORAGE_BACKEND = "memory"
+    PAYMENT_PROOF_STORAGE_BACKEND = "memory"
+elif not AWS_S3_BUCKET_NAME:
     raise ValueError(
-        "AWS_S3_BUCKET_NAME (or AWS_STORAGE_BUCKET_NAME) is required in production"
+        "AWS_S3_BUCKET_NAME (or AWS_STORAGE_BUCKET_NAME) is required in production "
+        "(or set VENI_USE_MEMORY_STORAGE=true for temporary bootstrap)"
     )
-
-PRODUCT_IMAGE_STORAGE_BACKEND = "boto3"
-PAYMENT_PROOF_STORAGE_BACKEND = "boto3"
+else:
+    PRODUCT_IMAGE_STORAGE_BACKEND = "boto3"
+    PAYMENT_PROOF_STORAGE_BACKEND = "boto3"
 
 LOGGING = {
     "version": 1,

@@ -267,6 +267,76 @@
   color: var(--color-muted-foreground);
 }
 
+.admin-variant-edit--options {
+  grid-template-columns: 1fr;
+}
+
+.admin-option-pool {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-btn);
+  background: var(--color-card);
+}
+
+.admin-option-pool__label {
+  margin: 0;
+  font-size: 0.625rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-muted-foreground);
+}
+
+.admin-option-pool__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.admin-option-chip {
+  appearance: none;
+  border: 1px solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-foreground);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font: inherit;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  cursor: pointer;
+}
+
+.admin-option-chip:hover {
+  border-color: var(--color-primary);
+}
+
+.admin-option-chip--active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.admin-option-pool__add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  font-size: 0.75rem;
+  font-weight: 500;
+  max-width: 18rem;
+}
+
+.admin-option-value-block {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--space-sm);
+}
+
 @media (max-width: 768px) {
   .admin-shell {
     flex-direction: column;

@@ -102,7 +102,15 @@ export function AccountPage() {
       </form>
       <p className="auth-page__lead">View your order history or continue shopping.</p>
       <div className="account-actions">
-        <Link to="/account/orders" className="btn btn-primary">
+        {user.role === "ADMIN" ? (
+          <Link to="/admin" className="btn btn-primary">
+            Open admin console
+          </Link>
+        ) : null}
+        <Link
+          to="/account/orders"
+          className={user.role === "ADMIN" ? "btn btn-secondary" : "btn btn-primary"}
+        >
           Order history
         </Link>
         <Link to="/cart" className="btn btn-secondary">

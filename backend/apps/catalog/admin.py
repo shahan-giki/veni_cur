@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from apps.catalog.models import Category, Product, ProductImage, ProductVariant
+from apps.catalog.models import (
+    Category,
+    CategoryOptionRecommendation,
+    Product,
+    ProductImage,
+    ProductVariant,
+    VariantOptionDefinition,
+)
 
 
 class ProductVariantInline(admin.TabularInline):
@@ -15,8 +22,8 @@ class ProductVariantInline(admin.TabularInline):
         "is_active",
     )
     verbose_name_plural = (
-        "Variants (set attributes e.g. "
-        '{"color": "Taupe", "color_hex": "#8b7355"} for storefront color dots)'
+        "Variants (attributes JSON maps to option pool keys, e.g. "
+        '{"color": "Taupe", "color_hex": "#8b7355", "volume": "30ml"})'
     )
 
 
@@ -25,11 +32,34 @@ class ProductImageInline(admin.TabularInline):
     extra = 0
 
 
+class CategoryOptionRecommendationInline(admin.TabularInline):
+    model = CategoryOptionRecommendation
+    extra = 0
+    autocomplete_fields = ("option",)
+
+
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
     list_display = ("name", "slug", "parent", "sort_order", "is_active", "is_visible")
     list_filter = ("is_active", "is_visible")
     prepopulated_fields = {"slug": ("name",)}
+    inlines = [CategoryOptionRecommendationInline]
+    search_fields = ("name", "slug")
+
+
+@admin.register(VariantOptionDefinition)
+class VariantOptionDefinitionAdmin(admin.ModelAdmin):
+    list_display = (
+        "key",
+        "label",
+        "kind",
+        "sort_order",
+        "recommend_all",
+        "is_active",
+    )
+    list_filter = ("kind", "is_active", "recommend_all")
+    search_fields = ("key", "label")
+    prepopulated_fields = {"key": ("label",)}
 
 
 @admin.register(Product)

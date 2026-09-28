@@ -8,6 +8,7 @@ from apps.catalog.views import (
     AdminProductViewSet,
     PublicCategoryViewSet,
     PublicProductViewSet,
+    admin_variant_options,
 )
 
 public_router = DefaultRouter()
@@ -21,6 +22,11 @@ admin_router.register("variants", AdminProductVariantViewSet, basename="admin-va
 
 urlpatterns = [
     path("", include(public_router.urls)),
+    path(
+        "admin/variant-options/",
+        admin_variant_options,
+        name="admin-variant-options",
+    ),
     path(
         "admin/products/<int:product_pk>/images/",
         AdminProductImageViewSet.as_view({"get": "list"}),

@@ -179,6 +179,27 @@ export async function confirmAdminProductImage(
   });
 }
 
+export type AdminVariantOption = {
+  key: string;
+  label: string;
+  kind: "text" | "color";
+  placeholder: string;
+  suggestions: string[];
+  sort_order: number;
+  recommended: boolean;
+};
+
+export function listAdminVariantOptions(params?: {
+  categoryId?: number;
+  categorySlug?: string;
+}): Promise<AdminVariantOption[]> {
+  const qs = new URLSearchParams();
+  if (params?.categoryId != null) qs.set("category", String(params.categoryId));
+  if (params?.categorySlug) qs.set("category_slug", params.categorySlug);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return fetchJson(`/admin/variant-options/${suffix}`);
+}
+
 export async function deleteAdminProductImage(
   productId: number,
   imageId: number

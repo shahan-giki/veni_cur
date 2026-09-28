@@ -101,4 +101,52 @@ describe("AuthProvider", () => {
 
     await waitFor(() => expect(authApi.login).toHaveBeenCalled());
   });
+
+  it("sends Admins to the admin console after sign-in", async () => {
+    const user = userEvent.setup();
+    const adminUser = {
+      ...mockUser,
+      email: "admin@veni.test",
+      role: "ADMIN" as const,
+    };
+    vi.mocked(authApi.login).mockResolvedValue(adminUser);
+    vi.mocked(authApi.getCurrentUser).mockResolvedValue(null);
+
+    renderWithProviders(
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/admin" element={<p>Admin home</p>} />
+          <Route path="/account" element={<AccountPage />} />
+        </Routes>
+      </AuthProvider>,
+      { routerProps: { initialEntries: ["/login"] } }
+    );
+
+    await user.type(screen.getByLabelText(/^email/i), "admin@veni.test");
+    await user.type(screen.getByLabelText(/^password/i), "admin-pass-123");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+    expect(await screen.findByText("Admin home")).toBeInTheDocument();
+  });
+
+  it("shows an admin console link on the account page for Admins", async () => {
+    vi.mocked(authApi.getCurrentUser).mockResolvedValue({
+      ...mockUser,
+      role: "ADMIN",
+    });
+
+    renderWithProviders(
+      <AuthProvider>
+        <Routes>
+          <Route path="/account" element={<AccountPage />} />
+        </Routes>
+      </AuthProvider>,
+      { routerProps: { initialEntries: ["/account"] } }
+    );
+
+    expect(
+      await screen.findByRole("link", { name: /open admin console/i })
+    ).toHaveAttribute("href", "/admin");
+  });
 });

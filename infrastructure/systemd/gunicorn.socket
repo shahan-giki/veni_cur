@@ -3,8 +3,8 @@ Description=Veni Gunicorn socket
 
 [Socket]
 ListenStream=/run/gunicorn.sock
-SocketUser=www-data
-SocketGroup=www-data
+SocketUser=nginx
+Group=nginx
 SocketMode=0660
 
 [Install]

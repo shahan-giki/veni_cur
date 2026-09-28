@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   confirmAdminProductImage,
@@ -9,16 +9,41 @@ import {
   getAdminProduct,
   listAdminCategories,
   listAdminProductImages,
+  listAdminVariantOptions,
   listAdminVariants,
   presignAdminProductImage,
   updateAdminProduct,
   updateAdminVariant,
   type AdminVariant,
+  type AdminVariantOption,
 } from "../../api/admin/catalog";
 import { formatApiValidationError } from "../../api/client";
 import { Button } from "../../components/ui/Button";
 import { LoadingGrid } from "../../components/ui/LoadingGrid";
-import { getColorFromAttributes, mergeColorAttributes } from "../../lib/variantDisplay";
+import {
+  buildAttributesFromSelections,
+  defaultSelectedKeys,
+  emptySelectionsForKeys,
+  getOptionDef,
+  labelFromSelections,
+  poolOptionsNotYetSelected,
+  selectionsFromAttributes,
+  suggestedOptionKeys,
+  type OptionSelection,
+  type VariantOptionDef,
+} from "../../lib/variantOptionPool";
+
+function toPool(rows: AdminVariantOption[]): VariantOptionDef[] {
+  return rows.map((r) => ({
+    key: r.key,
+    label: r.label,
+    kind: r.kind,
+    placeholder: r.placeholder,
+    suggestions: r.suggestions,
+    recommended: r.recommended,
+    sort_order: r.sort_order,
+  }));
+}
 
 export function AdminProductDetailPage() {
   const { id = "" } = useParams();
@@ -59,14 +84,30 @@ export function AdminProductDetailPage() {
     status: "DRAFT",
     is_active: false,
   });
-  const [variantForm, setVariantForm] = useState({
-    sku: "",
-    label: "",
-    inventory_count: 0,
-    color: "",
-    color_hex: "#8b7355",
-  });
+  const [variantSku, setVariantSku] = useState("");
+  const [variantLabel, setVariantLabel] = useState("");
+  const [variantInventory, setVariantInventory] = useState(0);
+  const [variantSelections, setVariantSelections] = useState<OptionSelection[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const categoryId = form.category || productQuery.data?.category || 0;
+
+  const optionsQuery = useQuery({
+    queryKey: ["admin", "variant-options", categoryId || "all"],
+    queryFn: () =>
+      listAdminVariantOptions(categoryId ? { categoryId } : undefined),
+    enabled: !isNew && productId > 0,
+  });
+
+  const pool = useMemo(
+    () => toPool(optionsQuery.data ?? []),
+    [optionsQuery.data]
+  );
+
+  useEffect(() => {
+    if (pool.length === 0) return;
+    setVariantSelections(emptySelectionsForKeys(defaultSelectedKeys(pool), pool));
+  }, [pool]);
 
   const saveProduct = useMutation({
     mutationFn: async () => {
@@ -84,14 +125,14 @@ export function AdminProductDetailPage() {
 
   const addVariant = useMutation({
     mutationFn: () => {
-      const color = variantForm.color.trim();
-      const attributes = mergeColorAttributes({}, color, variantForm.color_hex);
+      const attributes = buildAttributesFromSelections(variantSelections);
       const existing = variantsQuery.data?.results ?? [];
+      const autoLabel = labelFromSelections(variantSelections);
       return createAdminVariant({
         product: productId,
-        sku: variantForm.sku,
-        label: variantForm.label.trim() || color || "Default",
-        inventory_count: variantForm.inventory_count,
+        sku: variantSku,
+        label: variantLabel.trim() || autoLabel,
+        inventory_count: variantInventory,
         attributes,
         is_default: existing.length === 0,
         is_active: true,
@@ -99,36 +140,28 @@ export function AdminProductDetailPage() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "variants", productId] });
-      setVariantForm({
-        sku: "",
-        label: "",
-        inventory_count: 0,
-        color: "",
-        color_hex: "#8b7355",
-      });
+      setVariantSku("");
+      setVariantLabel("");
+      setVariantInventory(0);
+      setVariantSelections(emptySelectionsForKeys(defaultSelectedKeys(pool), pool));
       setError(null);
     },
     onError: (err) => setError(formatApiValidationError(err)),
   });
 
-  const saveVariantColor = useMutation({
+  const saveVariant = useMutation({
     mutationFn: (payload: {
       id: number;
-      color: string;
-      color_hex: string;
       label: string;
       inventory_count: number;
-      existingAttributes: Record<string, unknown>;
+      selections: OptionSelection[];
     }) => {
-      const color = payload.color.trim();
+      const attributes = buildAttributesFromSelections(payload.selections);
+      const autoLabel = labelFromSelections(payload.selections);
       return updateAdminVariant(payload.id, {
-        label: payload.label.trim() || color || "Default",
+        label: payload.label.trim() || autoLabel,
         inventory_count: payload.inventory_count,
-        attributes: mergeColorAttributes(
-          payload.existingAttributes,
-          color,
-          payload.color_hex
-        ),
+        attributes,
       });
     },
     onSuccess: () => {
@@ -171,11 +204,37 @@ export function AdminProductDetailPage() {
     });
   }, [productQuery.data]);
 
+  function addOptionKey(key: string) {
+    if (variantSelections.some((s) => s.key === key)) return;
+    const def = getOptionDef(key, pool);
+    setVariantSelections((prev) => [
+      ...prev,
+      def?.kind === "color"
+        ? { key, value: "", colorHex: "#8b7355" }
+        : { key, value: "" },
+    ]);
+  }
+
+  function removeOptionKey(key: string) {
+    setVariantSelections((prev) => prev.filter((s) => s.key !== key));
+  }
+
+  function updateSelection(key: string, patch: Partial<OptionSelection>) {
+    setVariantSelections((prev) =>
+      prev.map((s) => (s.key === key ? { ...s, ...patch } : s))
+    );
+  }
+
   if (!isNew && (productQuery.isLoading || !Number.isFinite(productId))) {
     return <LoadingGrid count={3} />;
   }
 
   const categories = categoriesQuery.data?.results ?? [];
+  const suggestedKeys = suggestedOptionKeys(pool);
+  const availableToAdd = poolOptionsNotYetSelected(
+    pool,
+    variantSelections.map((s) => s.key)
+  );
 
   return (
     <section aria-labelledby="admin-product-heading">
@@ -260,27 +319,45 @@ export function AdminProductDetailPage() {
 
       {!isNew && productId > 0 ? (
         <>
-          <div className="admin-card" id="admin-product-colors">
-            <h2>Colors &amp; variants</h2>
+          <div className="admin-card" id="admin-product-variants">
+            <h2>Options &amp; variants</h2>
             <p className="admin-hint">
-              Each color is its own Product variant. Add Taupe, Navy, etc. with a swatch — Customers
-              see circular color dots on the product page. Leave color blank for size/volume-only
-              variants.
+              Option definitions are stored in Postgres (Neon). Pick options, type values, then
+              save — each row is a Product variant; values map to{" "}
+              <code>attributes</code> JSONB on the variant.
             </p>
+            {optionsQuery.isLoading ? <LoadingGrid count={2} /> : null}
+            {optionsQuery.isError ? (
+              <p className="auth-form__error" role="alert">
+                Could not load option pool from the database. Run{" "}
+                <code>python manage.py seed_categories</code>.
+              </p>
+            ) : null}
+
             <ul className="admin-variant-list">
               {(variantsQuery.data?.results ?? []).map((v) => (
-                <AdminVariantColorRow
+                <AdminVariantOptionsRow
                   key={v.id}
                   variant={v}
-                  busy={saveVariantColor.isPending}
-                  onSave={(payload) => saveVariantColor.mutate(payload)}
+                  pool={pool}
+                  busy={saveVariant.isPending}
+                  onSave={(payload) => saveVariant.mutate(payload)}
                 />
               ))}
             </ul>
             {(variantsQuery.data?.results ?? []).length === 0 ? (
-              <p className="admin-hint">No variants yet. Add the first color below.</p>
+              <p className="admin-hint">No variants yet. Add the first one below.</p>
             ) : null}
-            <h3 className="admin-card__subtitle">Add color</h3>
+
+            <h3 className="admin-card__subtitle">Add variant</h3>
+            <OptionPoolPicker
+              pool={pool}
+              selectedKeys={variantSelections.map((s) => s.key)}
+              suggestedKeys={suggestedKeys}
+              available={availableToAdd}
+              onAdd={addOptionKey}
+              onRemove={removeOptionKey}
+            />
             <form
               className="admin-form-grid"
               onSubmit={(e: FormEvent) => {
@@ -288,66 +365,26 @@ export function AdminProductDetailPage() {
                 addVariant.mutate();
               }}
             >
-              <label>
-                Color name (for color dots)
-                <input
-                  value={variantForm.color}
-                  onChange={(e) => setVariantForm({ ...variantForm, color: e.target.value })}
-                  placeholder="e.g. Taupe, Navy — optional for non-color products"
-                  list="admin-color-presets"
-                />
-                <datalist id="admin-color-presets">
-                  <option value="Taupe" />
-                  <option value="Navy" />
-                  <option value="White" />
-                  <option value="Grey" />
-                  <option value="Black" />
-                  <option value="Beige" />
-                  <option value="Cream" />
-                  <option value="Maroon" />
-                  <option value="Olive" />
-                </datalist>
-              </label>
-              <label className="admin-color-picker">
-                Color swatch
-                <span className="admin-color-picker__row">
-                  <input
-                    type="color"
-                    value={
-                      /^#[0-9A-Fa-f]{6}$/.test(variantForm.color_hex)
-                        ? variantForm.color_hex
-                        : "#8b7355"
-                    }
-                    onChange={(e) =>
-                      setVariantForm({ ...variantForm, color_hex: e.target.value })
-                    }
-                    aria-label="Pick color hex"
-                  />
-                  <input
-                    type="text"
-                    value={variantForm.color_hex}
-                    onChange={(e) =>
-                      setVariantForm({ ...variantForm, color_hex: e.target.value })
-                    }
-                    placeholder="#8b7355"
-                  />
-                </span>
-              </label>
+              <OptionValueFields
+                pool={pool}
+                selections={variantSelections}
+                onChange={updateSelection}
+              />
               <label>
                 SKU
                 <input
-                  value={variantForm.sku}
-                  onChange={(e) => setVariantForm({ ...variantForm, sku: e.target.value })}
+                  value={variantSku}
+                  onChange={(e) => setVariantSku(e.target.value)}
                   required
-                  placeholder="e.g. SHAWL-TAUPE"
+                  placeholder="e.g. SHAWL-TAUPE-M"
                 />
               </label>
               <label>
                 Label (optional)
                 <input
-                  value={variantForm.label}
-                  onChange={(e) => setVariantForm({ ...variantForm, label: e.target.value })}
-                  placeholder="Defaults to color name"
+                  value={variantLabel}
+                  onChange={(e) => setVariantLabel(e.target.value)}
+                  placeholder="Auto from option values if blank"
                 />
               </label>
               <label>
@@ -355,17 +392,18 @@ export function AdminProductDetailPage() {
                 <input
                   type="number"
                   min={0}
-                  value={variantForm.inventory_count}
+                  value={variantInventory}
                   onChange={(e) =>
-                    setVariantForm({
-                      ...variantForm,
-                      inventory_count: Number.parseInt(e.target.value, 10) || 0,
-                    })
+                    setVariantInventory(Number.parseInt(e.target.value, 10) || 0)
                   }
                 />
               </label>
-              <Button type="submit" variant="primary" disabled={addVariant.isPending}>
-                {addVariant.isPending ? "Adding…" : "Add color"}
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={addVariant.isPending || pool.length === 0}
+              >
+                {addVariant.isPending ? "Adding…" : "Add variant"}
               </Button>
             </form>
           </div>
@@ -401,62 +439,236 @@ export function AdminProductDetailPage() {
   );
 }
 
-function AdminVariantColorRow({
+function OptionPoolPicker({
+  pool,
+  selectedKeys,
+  suggestedKeys,
+  available,
+  onAdd,
+  onRemove,
+}: {
+  pool: VariantOptionDef[];
+  selectedKeys: string[];
+  suggestedKeys: string[];
+  available: VariantOptionDef[];
+  onAdd: (key: string) => void;
+  onRemove: (key: string) => void;
+}) {
+  const suggestedAvailable = available.filter((o) => suggestedKeys.includes(o.key));
+  const otherAvailable = available.filter((o) => !suggestedKeys.includes(o.key));
+
+  return (
+    <div className="admin-option-pool">
+      <p className="admin-option-pool__label">Active options</p>
+      <div className="admin-option-pool__chips">
+        {selectedKeys.length === 0 ? (
+          <span className="admin-hint">No options yet — add from the pool below.</span>
+        ) : (
+          selectedKeys.map((key) => {
+            const def = getOptionDef(key, pool);
+            return (
+              <button
+                key={key}
+                type="button"
+                className="admin-option-chip admin-option-chip--active"
+                onClick={() => onRemove(key)}
+                title="Remove option"
+              >
+                {def?.label ?? key} ×
+              </button>
+            );
+          })
+        )}
+      </div>
+      {suggestedAvailable.length > 0 ? (
+        <>
+          <p className="admin-option-pool__label">Suggested for this category</p>
+          <div className="admin-option-pool__chips">
+            {suggestedAvailable.map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                className="admin-option-chip"
+                onClick={() => onAdd(o.key)}
+              >
+                + {o.label}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : null}
+      {otherAvailable.length > 0 ? (
+        <label className="admin-option-pool__add">
+          Add from full pool
+          <select
+            defaultValue=""
+            onChange={(e) => {
+              const key = e.target.value;
+              if (key) onAdd(key);
+              e.target.value = "";
+            }}
+          >
+            <option value="">Choose an option…</option>
+            {otherAvailable.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+    </div>
+  );
+}
+
+function OptionValueFields({
+  pool,
+  selections,
+  onChange,
+}: {
+  pool: VariantOptionDef[];
+  selections: OptionSelection[];
+  onChange: (key: string, patch: Partial<OptionSelection>) => void;
+}) {
+  if (selections.length === 0) return null;
+  return (
+    <>
+      {selections.map((sel) => {
+        const def = getOptionDef(sel.key, pool);
+        const label = def?.label ?? sel.key;
+        const placeholder = def?.placeholder;
+        const suggestions = def?.suggestions ?? [];
+        if (def?.kind === "color" || sel.key === "color") {
+          const hex =
+            sel.colorHex && /^#[0-9A-Fa-f]{6}$/.test(sel.colorHex)
+              ? sel.colorHex
+              : "#8b7355";
+          return (
+            <div key={sel.key} className="admin-option-value-block">
+              <label>
+                {label}
+                <input
+                  value={sel.value}
+                  onChange={(e) => onChange(sel.key, { value: e.target.value })}
+                  placeholder={placeholder}
+                  list={`opt-suggest-${sel.key}`}
+                />
+              </label>
+              <label className="admin-color-picker">
+                Color swatch
+                <span className="admin-color-picker__row">
+                  <input
+                    type="color"
+                    value={hex}
+                    onChange={(e) => onChange(sel.key, { colorHex: e.target.value })}
+                    aria-label={`${label} swatch`}
+                  />
+                  <input
+                    type="text"
+                    value={sel.colorHex ?? ""}
+                    onChange={(e) => onChange(sel.key, { colorHex: e.target.value })}
+                    placeholder="#8b7355"
+                  />
+                </span>
+              </label>
+              {suggestions.length > 0 ? (
+                <datalist id={`opt-suggest-${sel.key}`}>
+                  {suggestions.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
+              ) : null}
+            </div>
+          );
+        }
+        return (
+          <label key={sel.key}>
+            {label}
+            <input
+              value={sel.value}
+              onChange={(e) => onChange(sel.key, { value: e.target.value })}
+              placeholder={placeholder}
+              list={`opt-suggest-${sel.key}`}
+            />
+            {suggestions.length > 0 ? (
+              <datalist id={`opt-suggest-${sel.key}`}>
+                {suggestions.map((s) => (
+                  <option key={s} value={s} />
+                ))}
+              </datalist>
+            ) : null}
+          </label>
+        );
+      })}
+    </>
+  );
+}
+
+function AdminVariantOptionsRow({
   variant,
+  pool,
   busy,
   onSave,
 }: {
   variant: AdminVariant;
+  pool: VariantOptionDef[];
   busy: boolean;
   onSave: (payload: {
     id: number;
-    color: string;
-    color_hex: string;
     label: string;
     inventory_count: number;
-    existingAttributes: Record<string, unknown>;
+    selections: OptionSelection[];
   }) => void;
 }) {
-  const parsed = getColorFromAttributes(variant.attributes);
-  const [color, setColor] = useState(parsed?.name ?? "");
-  const [colorHex, setColorHex] = useState(parsed?.hex ?? "#78716c");
+  const [selections, setSelections] = useState(() =>
+    selectionsFromAttributes(variant.attributes, pool, defaultSelectedKeys(pool))
+  );
   const [label, setLabel] = useState(variant.label);
   const [inventory, setInventory] = useState(variant.inventory_count);
 
   useEffect(() => {
-    const next = getColorFromAttributes(variant.attributes);
-    setColor(next?.name ?? "");
-    setColorHex(next?.hex ?? "#78716c");
+    setSelections(
+      selectionsFromAttributes(variant.attributes, pool, defaultSelectedKeys(pool))
+    );
     setLabel(variant.label);
     setInventory(variant.inventory_count);
-  }, [variant]);
+  }, [variant, pool]);
 
-  const hexForPicker = /^#[0-9A-Fa-f]{6}$/.test(colorHex) ? colorHex : "#78716c";
+  const available = poolOptionsNotYetSelected(
+    pool,
+    selections.map((s) => s.key)
+  );
+  const suggested = suggestedOptionKeys(pool);
 
   return (
     <li className="admin-variant-list__item admin-variant-list__item--edit">
-      <span
-        className="admin-color-dot"
-        style={{ backgroundColor: color ? hexForPicker : "transparent" }}
-        aria-hidden="true"
-      />
-      <div className="admin-variant-edit">
-        <label>
-          Color
-          <input value={color} onChange={(e) => setColor(e.target.value)} />
-        </label>
-        <label className="admin-color-picker">
-          Swatch
-          <span className="admin-color-picker__row">
-            <input
-              type="color"
-              value={hexForPicker}
-              onChange={(e) => setColorHex(e.target.value)}
-              aria-label={`Color for ${variant.sku}`}
-            />
-            <input value={colorHex} onChange={(e) => setColorHex(e.target.value)} />
-          </span>
-        </label>
+      <div className="admin-variant-edit admin-variant-edit--options">
+        <p className="admin-variant-edit__sku">SKU {variant.sku}</p>
+        <OptionPoolPicker
+          pool={pool}
+          selectedKeys={selections.map((s) => s.key)}
+          suggestedKeys={suggested}
+          available={available}
+          onAdd={(key) => {
+            const def = getOptionDef(key, pool);
+            setSelections((prev) => [
+              ...prev,
+              def?.kind === "color"
+                ? { key, value: "", colorHex: "#8b7355" }
+                : { key, value: "" },
+            ]);
+          }}
+          onRemove={(key) => setSelections((prev) => prev.filter((s) => s.key !== key))}
+        />
+        <OptionValueFields
+          pool={pool}
+          selections={selections}
+          onChange={(key, patch) =>
+            setSelections((prev) =>
+              prev.map((s) => (s.key === key ? { ...s, ...patch } : s))
+            )
+          }
+        />
         <label>
           Label
           <input value={label} onChange={(e) => setLabel(e.target.value)} />
@@ -470,7 +682,6 @@ function AdminVariantColorRow({
             onChange={(e) => setInventory(Number.parseInt(e.target.value, 10) || 0)}
           />
         </label>
-        <p className="admin-variant-edit__sku">SKU {variant.sku}</p>
         <Button
           type="button"
           variant="secondary"
@@ -478,15 +689,13 @@ function AdminVariantColorRow({
           onClick={() =>
             onSave({
               id: variant.id,
-              color,
-              color_hex: colorHex,
               label,
               inventory_count: inventory,
-              existingAttributes: variant.attributes ?? {},
+              selections,
             })
           }
         >
-          Save color
+          Save variant
         </Button>
       </div>
     </li>

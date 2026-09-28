@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from apps.catalog.models import ProductVariant
+from apps.catalog.services.option_pool_service import normalize_variant_attributes
 
 
 def validate_variant_price(price: Decimal | None) -> None:
@@ -14,6 +15,8 @@ def validate_variant_price(price: Decimal | None) -> None:
 @transaction.atomic
 def create_variant(**fields) -> ProductVariant:
     validate_variant_price(fields.get("price"))
+    if "attributes" in fields:
+        fields["attributes"] = normalize_variant_attributes(fields.get("attributes"))
     variant = ProductVariant(**fields)
     variant.full_clean()
     variant.save()
@@ -24,6 +27,8 @@ def create_variant(**fields) -> ProductVariant:
 def update_variant(variant: ProductVariant, **fields) -> ProductVariant:
     if "inventory_count" in fields and fields["inventory_count"] < 0:
         raise ValidationError({"inventory_count": "Inventory cannot be negative."})
+    if "attributes" in fields:
+        fields["attributes"] = normalize_variant_attributes(fields.get("attributes"))
     for key, value in fields.items():
         setattr(variant, key, value)
     validate_variant_price(variant.price)

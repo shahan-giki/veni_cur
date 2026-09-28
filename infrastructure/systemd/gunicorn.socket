@@ -4,7 +4,7 @@ Description=Veni Gunicorn socket
 [Socket]
 ListenStream=/run/gunicorn.sock
 SocketUser=nginx
-Group=nginx
+SocketGroup=nginx
 SocketMode=0660
 
 [Install]

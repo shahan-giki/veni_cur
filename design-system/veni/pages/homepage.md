@@ -15,7 +15,7 @@
 
 - **Max Width:** 1200px (standard)
 - **Layout:** Full-width sections, centered content
-- **Sections:** Hero (Shop Veni) > Featured products. No trust-copy strip — the catalog should carry the page.
+- **Sections:** Hero (Shop Veni) > Featured products > Collections (all top-level categories; empty ones labeled Empty). No trust-copy strip — the catalog should carry the page.
 
 ### Spacing Overrides
 

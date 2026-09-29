@@ -2,10 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  activateAdminProduct,
   confirmAdminProductImage,
   createAdminProduct,
   createAdminVariant,
+  deactivateAdminProduct,
   deleteAdminProductImage,
+  deleteAdminVariant,
   getAdminProduct,
   listAdminCategories,
   listAdminProductImages,
@@ -82,7 +85,7 @@ export function AdminProductDetailPage() {
     description: "",
     base_price: "0.00",
     status: "DRAFT",
-    is_active: false,
+    is_active: true,
   });
   const [variantSku, setVariantSku] = useState("");
   const [variantLabel, setVariantLabel] = useState("");
@@ -118,6 +121,33 @@ export function AdminProductDetailPage() {
     onSuccess: (product) => {
       if (isNew) void navigate(`/admin/products/${product.id}`);
       else void queryClient.invalidateQueries({ queryKey: ["admin", "product", productId] });
+      setError(null);
+    },
+    onError: (err) => setError(formatApiValidationError(err)),
+  });
+
+  const toggleActive = useMutation({
+    mutationFn: async (nextActive: boolean) => {
+      const product = nextActive
+        ? await activateAdminProduct(productId)
+        : await deactivateAdminProduct(productId);
+      // Keep Published when activating so the product actually shows on the storefront.
+      if (nextActive && product.status !== "PUBLISHED") {
+        return updateAdminProduct(productId, {
+          status: "PUBLISHED",
+          is_active: true,
+        });
+      }
+      return product;
+    },
+    onSuccess: (product) => {
+      setForm((prev) => ({
+        ...prev,
+        is_active: product.is_active,
+        status: product.status,
+      }));
+      void queryClient.invalidateQueries({ queryKey: ["admin", "product", productId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
       setError(null);
     },
     onError: (err) => setError(formatApiValidationError(err)),
@@ -164,6 +194,15 @@ export function AdminProductDetailPage() {
         attributes,
       });
     },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "variants", productId] });
+      setError(null);
+    },
+    onError: (err) => setError(formatApiValidationError(err)),
+  });
+
+  const deleteVariant = useMutation({
+    mutationFn: (variantId: number) => deleteAdminVariant(variantId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "variants", productId] });
       setError(null);
@@ -293,7 +332,15 @@ export function AdminProductDetailPage() {
           Status
           <select
             value={form.status}
-            onChange={(e) => setForm({ ...form, status: e.target.value })}
+            onChange={(e) => {
+              const status = e.target.value;
+              setForm({
+                ...form,
+                status,
+                // Publishing implies storefront-visible; drafts stay inactive unless toggled.
+                is_active: status === "PUBLISHED" ? true : form.is_active,
+              });
+            }}
           >
             <option value="DRAFT">Draft</option>
             <option value="PUBLISHED">Published</option>
@@ -307,14 +354,41 @@ export function AdminProductDetailPage() {
             onChange={(e) => setForm({ ...form, description: e.target.value })}
           />
         </label>
+        <fieldset className="admin-active-field">
+          <legend>Storefront visibility</legend>
+          <p className="admin-hint">
+            Status must be <strong>Published</strong> and Active must be on for the product
+            to appear in the shop.
+          </p>
+          <label className="admin-check">
+            <input
+              type="checkbox"
+              checked={form.is_active}
+              onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+            />
+            Active
+          </label>
+        </fieldset>
         {error ? (
           <p className="auth-form__error" role="alert">
             {error}
           </p>
         ) : null}
-        <Button type="submit" variant="primary" disabled={saveProduct.isPending}>
-          Save product
-        </Button>
+        <div className="admin-form-actions">
+          <Button type="submit" variant="primary" disabled={saveProduct.isPending}>
+            Save product
+          </Button>
+          {!isNew && productId > 0 ? (
+            <Button
+              type="button"
+              variant={form.is_active ? "outline" : "primary"}
+              disabled={toggleActive.isPending || saveProduct.isPending}
+              onClick={() => toggleActive.mutate(!form.is_active)}
+            >
+              {form.is_active ? "Deactivate" : "Make active"}
+            </Button>
+          ) : null}
+        </div>
       </form>
 
       {!isNew && productId > 0 ? (
@@ -340,8 +414,17 @@ export function AdminProductDetailPage() {
                   key={v.id}
                   variant={v}
                   pool={pool}
-                  busy={saveVariant.isPending}
+                  busy={saveVariant.isPending || deleteVariant.isPending}
                   onSave={(payload) => saveVariant.mutate(payload)}
+                  onDelete={(variantId) => {
+                    if (
+                      window.confirm(
+                        `Delete variant ${v.sku}? This cannot be undone.`
+                      )
+                    ) {
+                      deleteVariant.mutate(variantId);
+                    }
+                  }}
                 />
               ))}
             </ul>
@@ -609,6 +692,7 @@ function AdminVariantOptionsRow({
   pool,
   busy,
   onSave,
+  onDelete,
 }: {
   variant: AdminVariant;
   pool: VariantOptionDef[];
@@ -619,6 +703,7 @@ function AdminVariantOptionsRow({
     inventory_count: number;
     selections: OptionSelection[];
   }) => void;
+  onDelete: (variantId: number) => void;
 }) {
   const [selections, setSelections] = useState(() =>
     selectionsFromAttributes(variant.attributes, pool, defaultSelectedKeys(pool))
@@ -682,21 +767,31 @@ function AdminVariantOptionsRow({
             onChange={(e) => setInventory(Number.parseInt(e.target.value, 10) || 0)}
           />
         </label>
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={busy}
-          onClick={() =>
-            onSave({
-              id: variant.id,
-              label,
-              inventory_count: inventory,
-              selections,
-            })
-          }
-        >
-          Save variant
-        </Button>
+        <div className="admin-form-actions">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={busy}
+            onClick={() =>
+              onSave({
+                id: variant.id,
+                label,
+                inventory_count: inventory,
+                selections,
+              })
+            }
+          >
+            Save variant
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            disabled={busy}
+            onClick={() => onDelete(variant.id)}
+          >
+            Delete variant
+          </Button>
+        </div>
       </div>
     </li>
   );

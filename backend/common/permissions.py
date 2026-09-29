@@ -18,14 +18,15 @@ class IsCustomer(BasePermission):
 
 
 class IsCustomerOrGuest(BasePermission):
-    """Storefront cart: a Customer, or anyone who is not signed in as Admin."""
+    """Storefront cart is open to anyone.
+
+    Customers get a user-owned cart; guests and admins (e.g. after seeding the
+    catalog) share the session cart. Cart views resolve ownership separately.
+    """
 
     message = "Customer or guest access required."
 
     def has_permission(self, request, view):
-        user = request.user
-        if user and user.is_authenticated:
-            return getattr(user, "role", None) == UserRole.CUSTOMER
         return True
 
 

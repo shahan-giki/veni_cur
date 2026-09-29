@@ -245,3 +245,29 @@ def test_admin_can_create_color_variant_visible_on_storefront(
         if v.get("attributes")
     ]
     assert "Navy" in colors
+
+
+@pytest.mark.django_db
+def test_admin_can_delete_variant(api_client, admin_user, published_product):
+    api_client.force_login(admin_user)
+    create = api_client.post(
+        "/api/v1/admin/variants/",
+        {
+            "product": published_product.pk,
+            "sku": "test-serum-to-delete",
+            "label": "Temp",
+            "inventory_count": 1,
+            "attributes": {"volume": "30ml"},
+            "is_default": False,
+            "is_active": True,
+        },
+        format="json",
+    )
+    assert create.status_code == 201, create.data
+    variant_id = create.data["id"]
+
+    deleted = api_client.delete(f"/api/v1/admin/variants/{variant_id}/")
+    assert deleted.status_code == 204
+
+    missing = api_client.get(f"/api/v1/admin/variants/{variant_id}/")
+    assert missing.status_code == 404

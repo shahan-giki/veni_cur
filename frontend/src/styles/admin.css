@@ -337,6 +337,39 @@
   gap: var(--space-sm);
 }
 
+.admin-check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-weight: 500;
+}
+
+.admin-check input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.admin-active-field {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 6px);
+  padding: var(--space-md);
+  margin: 0;
+  grid-column: 1 / -1;
+}
+
+.admin-active-field legend {
+  padding: 0 var(--space-xs);
+  font-weight: 600;
+}
+
+.admin-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  align-items: center;
+  grid-column: 1 / -1;
+}
+
 @media (max-width: 768px) {
   .admin-shell {
     flex-direction: column;

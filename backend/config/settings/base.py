@@ -136,12 +136,26 @@ REST_FRAMEWORK = {
     },
 }
 
-EMAIL_BACKEND = os.environ.get(
-    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
-)
+# SMTP — when EMAIL_HOST is set, default to real delivery (not console).
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "").strip()
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "").strip()
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "true").lower() == "true"
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "false").lower() == "true"
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@veni.store")
+_email_backend_default = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if EMAIL_HOST
+    else "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", _email_backend_default)
 VENI_NOTIFICATIONS_CONSOLE = (
-    os.environ.get("VENI_NOTIFICATIONS_CONSOLE", "true").lower() == "true"
+    os.environ.get(
+        "VENI_NOTIFICATIONS_CONSOLE",
+        "false" if EMAIL_HOST else "true",
+    ).lower()
+    == "true"
 )
 
 SPECTACULAR_SETTINGS = {

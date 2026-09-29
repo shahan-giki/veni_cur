@@ -108,6 +108,16 @@ export async function updateAdminProduct(
   });
 }
 
+export async function activateAdminProduct(id: number): Promise<AdminProduct> {
+  await ensureCsrfCookie();
+  return fetchJson(`/admin/products/${id}/activate/`, { method: "POST" });
+}
+
+export async function deactivateAdminProduct(id: number): Promise<AdminProduct> {
+  await ensureCsrfCookie();
+  return fetchJson(`/admin/products/${id}/deactivate/`, { method: "POST" });
+}
+
 export function listAdminVariants(productId: number): Promise<Paginated<AdminVariant>> {
   return fetchJson(`/admin/variants/?product=${productId}&page_size=50`);
 }
@@ -131,6 +141,11 @@ export async function updateAdminVariant(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+export async function deleteAdminVariant(id: number): Promise<void> {
+  await ensureCsrfCookie();
+  await fetchJson(`/admin/variants/${id}/`, { method: "DELETE" });
 }
 
 export async function patchVariantInventory(

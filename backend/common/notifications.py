@@ -62,7 +62,12 @@ def notify(event: str, *, email: str, context: dict[str, Any] | None = None) -> 
         )
         if html_body:
             message.attach_alternative(html_body, "text/html")
-        message.send(fail_silently=True)
+        # Failures must surface in logs; checkout already isolates notify from the response.
+        sent = message.send(fail_silently=False)
+        if sent:
+            logger.info("sent event=%s to=%s subject=%s", event, email, subject)
+        else:
+            logger.error("notify returned 0 recipients event=%s to=%s", event, email)
     except Exception:
         logger.exception("Failed to notify event=%s to=%s", event, email)
 

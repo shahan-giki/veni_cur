@@ -90,10 +90,24 @@ def test_guest_cart_merges_on_login(
 
 
 @pytest.mark.django_db
-def test_admin_cannot_access_customer_cart(api_client, admin_user):
+def test_admin_uses_session_cart_not_customer_cart(
+    csrf_api_client, admin_user, published_product
+):
+    """Admins may browse/shop via the guest session cart (not a user cart)."""
+    api_client = csrf_api_client
     api_client.force_login(admin_user)
-    resp = api_client.get("/api/v1/cart/")
-    assert resp.status_code == 403
+    headers = _csrf_headers(api_client)
+    variant = published_product.variants.first()
+    resp = api_client.post(
+        "/api/v1/cart/items/",
+        {"variant_id": variant.id, "quantity": 1},
+        format="json",
+        **headers,
+    )
+    assert resp.status_code == 200, resp.data
+    assert resp.data["item_count"] == 1
+    assert Cart.objects.filter(user=admin_user).count() == 0
+    assert Cart.objects.filter(user__isnull=True).count() == 1
 
 
 @pytest.mark.django_db
